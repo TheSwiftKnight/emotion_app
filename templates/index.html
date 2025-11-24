@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 情緒分析系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        .progress-bar { transition: width 0.3s ease; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-4xl font-bold mb-8 text-center text-blue-400">AI 影片情緒即時分析</h1>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            <!-- 左側：控制與影像 -->
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">1. 上傳與控制</h2>
+                
+                <div class="mb-6">
+                    <input type="file" id="videoInput" accept="video/mp4" class="block w-full text-sm text-gray-400
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-blue-600 file:text-white
+                        hover:file:bg-blue-700
+                    "/>
+                </div>
+
+                <div class="flex gap-4 mb-6">
+                    <button onclick="uploadVideo()" id="uploadBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition">
+                        上傳影片
+                    </button>
+                    <button onclick="startProcessing()" id="startBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded transition disabled:opacity-50" disabled>
+                        開始分析
+                    </button>
+                </div>
+
+                <div class="relative aspect-video bg-black rounded-lg overflow-hidden border-2 border-gray-700">
+                    <p id="placeholderText" class="absolute inset-0 flex items-center justify-center text-gray-500">
+                        分析畫面將顯示於此
+                    </p>
+                    <img id="processedFrame" class="w-full h-full object-contain hidden" />
+                </div>
+            </div>
+
+            <!-- 右側：即時數據面板 -->
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                <h2 class="text-xl font-semibold mb-6">2. 即時情緒比例</h2>
+                <div id="stats-container" class="space-y-4">
+                    <!-- 情緒長條圖會動態插入這裡 -->
+                    <!-- 預設顯示 -->
+                    <div class="text-gray-500 text-center py-10">等待數據中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const emotions = ['Happy', 'Angry', 'Sad', 'Surprise', 'Fear', 'Disgust', 'Neutral'];
+        const colors = {
+            'Happy': 'bg-yellow-400',
+            'Angry': 'bg-red-500',
+            'Sad': 'bg-blue-400',
+            'Surprise': 'bg-purple-400',
+            'Fear': 'bg-indigo-600',
+            'Disgust': 'bg-green-500',
+            'Neutral': 'bg-gray-400'
+        };
+
+        // 初始化情緒條
+        function initStats() {
+            const container = document.getElementById('stats-container');
+            container.innerHTML = '';
+            emotions.forEach(emo => {
+                const html = `
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <span class="text-sm font-medium text-gray-200">${emo}</span>
+                            <span class="text-sm font-medium text-gray-200" id="val-${emo}">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-4">
+                            <div id="bar-${emo}" class="${colors[emo]} h-4 rounded-full progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += html;
+            });
+        }
+
+        async function uploadVideo() {
+            const fileInput = document.getElementById('videoInput');
+            const file = fileInput.files[0];
+            if (!file) return alert("請先選擇檔案");
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const btn = document.getElementById('uploadBtn');
+            btn.textContent = "上傳中...";
+            
+            // 重置處理狀態
+            isProcessing = false;
+            
+            try {
+                const res = await fetch('/upload', { method: 'POST', body: formData });
+                if (res.ok) {
+                    alert("上傳成功！請按下「開始分析」");
+                    const startBtn = document.getElementById('startBtn');
+                    startBtn.disabled = false;
+                    startBtn.textContent = '開始分析';
+                    initStats();
+                    // 重置畫面
+                    document.getElementById('placeholderText').style.display = 'flex';
+                    document.getElementById('processedFrame').style.display = 'none';
+                } else {
+                    alert("上傳失敗");
+                }
+            } catch (e) {
+                console.error(e);
+                alert("發生錯誤");
+            } finally {
+                btn.textContent = "上傳影片";
+            }
+        }
+
+        function startProcessing() {
+            if (isProcessing) {
+                alert("正在處理中，請稍候...");
+                return;
+            }
+            
+            isProcessing = true;
+            document.getElementById('placeholderText').style.display = 'none';
+            const img = document.getElementById('processedFrame');
+            img.classList.remove('hidden');
+            img.style.display = 'block';
+            
+            const startBtn = document.getElementById('startBtn');
+            startBtn.disabled = true;
+            startBtn.textContent = '分析中...';
+            
+            socket.emit('start_processing');
+        }
+
+        // 監聽後端傳來的影像幀
+        socket.on('video_frame', (data) => {
+            if (!isProcessing) return; // 如果處理已停止，不再更新畫面
+            const img = document.getElementById('processedFrame');
+            img.src = `data:image/jpeg;base64,${data.image}`;
+        });
+
+        // 監聽後端傳來的數據
+        socket.on('emotion_update', (data) => {
+            // data 格式: { Happy: 87.5, Angry: 10.2, ... }
+            for (const [key, value] of Object.entries(data)) {
+                const bar = document.getElementById(`bar-${key}`);
+                const val = document.getElementById(`val-${key}`);
+                if (bar && val) {
+                    bar.style.width = `${value}%`;
+                    val.innerText = `${value.toFixed(1)}%`;
+                }
+            }
+        });
+
+        let isProcessing = false;
+        
+        socket.on('processing_complete', () => {
+            isProcessing = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('startBtn').textContent = '重新分析';
+            alert("影片分析完成！");
+        });
+
+        socket.on('error', (data) => {
+            alert("錯誤: " + data.msg);
+        });
+    </script>
+</body>
+</html>
