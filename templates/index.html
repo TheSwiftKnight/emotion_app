@@ -19,9 +19,21 @@
             
             <!-- 左側：控制與影像 -->
             <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
-                <h2 class="text-xl font-semibold mb-4">1. 上傳與控制</h2>
-                
+                <h2 class="text-xl font-semibold mb-4">1. 輸入來源與控制</h2>
+
                 <div class="mb-6">
+                    <p class="text-sm text-gray-300 mb-2">選擇輸入來源</p>
+                    <div class="flex flex-wrap gap-3">
+                        <button type="button" id="mode-upload" onclick="setInputMode('upload')" class="mode-btn bg-blue-600 text-white font-semibold px-4 py-2 rounded-full transition focus:outline-none">
+                            上傳影片
+                        </button>
+                        <button type="button" id="mode-camera" onclick="setInputMode('camera')" class="mode-btn bg-gray-700 hover:bg-gray-600 text-white font-semibold px-4 py-2 rounded-full transition focus:outline-none">
+                            即時攝影機
+                        </button>
+                    </div>
+                </div>
+
+                <div id="uploadControls" class="space-y-4 mb-6">
                     <input type="file" id="videoInput" accept="video/mp4" class="block w-full text-sm text-gray-400
                         file:mr-4 file:py-2 file:px-4
                         file:rounded-full file:border-0
@@ -29,14 +41,24 @@
                         file:bg-blue-600 file:text-white
                         hover:file:bg-blue-700
                     "/>
+                    <div class="flex items-center gap-4">
+                        <button onclick="uploadVideo()" id="uploadBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition">
+                            上傳影片
+                        </button>
+                        <p class="text-sm text-gray-400">成功上傳後才能開始分析</p>
+                    </div>
+                </div>
+
+                <div id="cameraHint" class="hidden text-sm text-gray-400 mb-6">
+                    將使用此伺服器連線的攝影機。開始分析後可隨時停止。
                 </div>
 
                 <div class="flex gap-4 mb-6">
-                    <button onclick="uploadVideo()" id="uploadBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition">
-                        上傳影片
-                    </button>
                     <button onclick="startProcessing()" id="startBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded transition disabled:opacity-50" disabled>
                         開始分析
+                    </button>
+                    <button onclick="stopProcessing()" id="stopBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition hidden">
+                        停止分析
                     </button>
                 </div>
 
@@ -93,6 +115,46 @@
             });
         }
 
+        let isProcessing = false;
+        let inputMode = 'upload';
+        let hasUploadedVideo = false;
+
+        function setInputMode(mode) {
+            if (isProcessing) {
+                alert('分析進行中，請先停止再切換來源。');
+                return;
+            }
+            inputMode = mode;
+            const uploadControls = document.getElementById('uploadControls');
+            const cameraHint = document.getElementById('cameraHint');
+            const startBtn = document.getElementById('startBtn');
+            const modeUploadBtn = document.getElementById('mode-upload');
+            const modeCameraBtn = document.getElementById('mode-camera');
+
+            if (mode === 'upload') {
+                uploadControls.classList.remove('hidden');
+                cameraHint.classList.add('hidden');
+                startBtn.disabled = !hasUploadedVideo;
+                modeUploadBtn.classList.add('bg-blue-600');
+                modeUploadBtn.classList.remove('bg-gray-700', 'hover:bg-gray-600');
+                modeCameraBtn.classList.remove('bg-blue-600');
+                modeCameraBtn.classList.add('bg-gray-700', 'hover:bg-gray-600');
+            } else {
+                uploadControls.classList.add('hidden');
+                cameraHint.classList.remove('hidden');
+                startBtn.disabled = false;
+                modeCameraBtn.classList.add('bg-blue-600');
+                modeCameraBtn.classList.remove('bg-gray-700', 'hover:bg-gray-600');
+                modeUploadBtn.classList.remove('bg-blue-600');
+                modeUploadBtn.classList.add('bg-gray-700', 'hover:bg-gray-600');
+            }
+
+            startBtn.textContent = '開始分析';
+            document.getElementById('stopBtn').classList.add('hidden');
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('stopBtn').textContent = '停止分析';
+        }
+
         async function uploadVideo() {
             const fileInput = document.getElementById('videoInput');
             const file = fileInput.files[0];
@@ -111,9 +173,12 @@
                 const res = await fetch('/upload', { method: 'POST', body: formData });
                 if (res.ok) {
                     alert("上傳成功！請按下「開始分析」");
+                    hasUploadedVideo = true;
                     const startBtn = document.getElementById('startBtn');
-                    startBtn.disabled = false;
-                    startBtn.textContent = '開始分析';
+                    if (inputMode === 'upload') {
+                        startBtn.disabled = false;
+                        startBtn.textContent = '開始分析';
+                    }
                     initStats();
                     // 重置畫面
                     document.getElementById('placeholderText').style.display = 'flex';
@@ -134,8 +199,14 @@
                 alert("正在處理中，請稍候...");
                 return;
             }
+
+            if (inputMode === 'upload' && !hasUploadedVideo) {
+                alert("請先上傳影片檔案");
+                return;
+            }
             
             isProcessing = true;
+            initStats();
             document.getElementById('placeholderText').style.display = 'none';
             const img = document.getElementById('processedFrame');
             img.classList.remove('hidden');
@@ -144,8 +215,25 @@
             const startBtn = document.getElementById('startBtn');
             startBtn.disabled = true;
             startBtn.textContent = '分析中...';
-            
-            socket.emit('start_processing');
+
+            const stopBtn = document.getElementById('stopBtn');
+            if (inputMode === 'camera') {
+                stopBtn.classList.remove('hidden');
+                stopBtn.disabled = false;
+                stopBtn.textContent = '停止分析';
+            } else {
+                stopBtn.classList.add('hidden');
+            }
+
+            socket.emit('start_processing', { mode: inputMode });
+        }
+
+        function stopProcessing() {
+            if (!isProcessing) return;
+            socket.emit('stop_processing');
+            const stopBtn = document.getElementById('stopBtn');
+            stopBtn.disabled = true;
+            stopBtn.textContent = '停止中...';
         }
 
         // 監聽後端傳來的影像幀
@@ -168,18 +256,39 @@
             }
         });
 
-        let isProcessing = false;
-        
-        socket.on('processing_complete', () => {
+        socket.on('processing_complete', (data) => {
             isProcessing = false;
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('startBtn').textContent = '重新分析';
-            alert("影片分析完成！");
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            stopBtn.classList.add('hidden');
+            stopBtn.disabled = false;
+            stopBtn.textContent = '停止分析';
+
+            const modeFromServer = data?.mode || inputMode;
+            if (modeFromServer === 'upload') {
+                startBtn.disabled = !hasUploadedVideo;
+                startBtn.textContent = '重新分析';
+            } else {
+                startBtn.disabled = false;
+                startBtn.textContent = '重新啟動攝影機';
+            }
+
+            document.getElementById('placeholderText').style.display = 'flex';
+            alert(data?.msg || "分析完成！");
         });
 
         socket.on('error', (data) => {
             alert("錯誤: " + data.msg);
+            isProcessing = false;
+            document.getElementById('startBtn').disabled = (inputMode === 'upload' && !hasUploadedVideo);
+            document.getElementById('startBtn').textContent = '開始分析';
+            document.getElementById('stopBtn').classList.add('hidden');
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('stopBtn').textContent = '停止分析';
         });
+
+        // 初始化預設狀態
+        setInputMode('upload');
     </script>
 </body>
 </html>

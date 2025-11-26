@@ -29,6 +29,7 @@ SEND_INTERVAL = 0.5  # 每 0.5 秒發送一次 OSC 訊息
 # 全域變數儲存模型
 model = None
 emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
+processing_sessions = {}  # 紀錄每個使用者目前的處理狀態
 
 # 初始化 OSC 客戶端
 osc_client = None
@@ -102,111 +103,160 @@ def upload_file():
 
 # --- SocketIO Events ---
 
-@socketio.on('start_processing')
-def handle_process_video():
+def _stop_session(sid, message=None):
+    """Helper to停止指定 session 的處理流程。"""
+    session = processing_sessions.get(sid)
+    if session:
+        session['stop'] = True
+    if message:
+        socketio.emit('error', {'msg': message}, to=sid)
+
+
+def process_video_stream(sid, mode):
+    """背景任務：依照 mode 進行影片或即時攝影的情緒分析。"""
     global model, osc_client
+    session = processing_sessions.get(sid)
+    if session is None:
+        return
+
     if model is None:
         load_emotion_model()
         if model is None:
-            emit('error', {'msg': 'Model not found!'})
+            _stop_session(sid, 'Model not found!')
+            processing_sessions.pop(sid, None)
             return
 
-    video_path = os.path.join(UPLOAD_FOLDER, 'uploaded_video.mp4')
-    if not os.path.exists(video_path):
-        emit('error', {'msg': 'Video file not found. Please upload first.'})
+    if mode not in ('upload', 'camera'):
+        _stop_session(sid, '未知的來源模式')
+        processing_sessions.pop(sid, None)
         return
 
-    cap = cv2.VideoCapture(video_path)
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    cap = None
+    if mode == 'upload':
+        video_path = os.path.join(UPLOAD_FOLDER, 'uploaded_video.mp4')
+        if not os.path.exists(video_path):
+            _stop_session(sid, 'Video file not found. Please upload first.')
+            processing_sessions.pop(sid, None)
+            return
+        cap = cv2.VideoCapture(video_path)
+    else:
+        cap = cv2.VideoCapture(0)
 
-    print("Starting video processing...")
-    
-    # OSC 時間控制
+    if not cap or not cap.isOpened():
+        _stop_session(sid, '無法開啟影片或攝影機來源')
+        processing_sessions.pop(sid, None)
+        return
+
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    source_desc = '即時攝影' if mode == 'camera' else '影片'
+    print(f"Starting {source_desc} processing for session {sid} ...")
+
     last_send_time = 0
     last_probabilities = np.zeros(len(emotion_labels))
     last_emotion = 'Neutral'
-    max_idx = 0  # 初始化 max_idx
-    
+    max_idx = 0
+
     while True:
-        ret, frame = cap.read()
-        if not ret:
-            # 影片結束，發送最後一幀（如果有）然後停止
-            print("Video processing completed.")
+        if session.get('stop'):
+            print(f"Session {sid} requested stop.")
             break
 
-        # 為了效能，每 3 幀處理一次，或根據需要調整
-        # 这里为了演示流畅性，每一帧都处理，但你可以加计数器跳帧
+        ret, frame = cap.read()
+        if not ret:
+            if mode == 'camera':
+                socketio.sleep(0.05)
+                continue
+            print(f"{source_desc} processing completed for session {sid}.")
+            break
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=5)
 
         current_emotions = {}
-        
-        # 為了視覺化，我們把處理過的畫面傳回前端
         for (x, y, w, h) in faces:
-            face = gray[y:y + h, x:x + w] # 模型需要灰階輸入
-            
+            face = gray[y:y + h, x:x + w]
             try:
                 probabilities = predict_emotion(face)
-                
-                # 更新最後的情緒數據（用於 OSC）
                 last_probabilities = probabilities
-                max_idx = np.argmax(probabilities)
+                max_idx = int(np.argmax(probabilities))
                 last_emotion = emotion_labels[max_idx]
-                
-                # 準備數據傳給前端
+
                 emotion_data = {}
                 for i, label in enumerate(emotion_labels):
                     emotion_data[label] = float(probabilities[i]) * 100
-                
-                current_emotions = emotion_data # 存下來發送
-                
-                # 在畫面上畫框 (Optional: 如果你想在後端畫好再傳回去)
+                current_emotions = emotion_data
+
                 label_text = f"{emotion_labels[max_idx]}: {probabilities[max_idx]*100:.1f}%"
                 cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
                 cv2.putText(frame, label_text, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-                
+                break  # 一次只處理第一張臉，維持與舊邏輯一致
             except Exception as e:
                 print(f"Prediction error: {e}")
 
-        # 將 Frame 轉為 Base64 圖片傳回前端顯示
         _, buffer = cv2.imencode('.jpg', frame)
         frame_base64 = base64.b64encode(buffer).decode('utf-8')
+        socketio.emit('video_frame', {'image': frame_base64}, to=sid)
 
-        # 發送數據到前端
-        socketio.emit('video_frame', {'image': frame_base64})
-        
         if current_emotions:
-            socketio.emit('emotion_update', current_emotions)
-        
-        # 發送 OSC 訊息到 Max/MSP
+            socketio.emit('emotion_update', current_emotions, to=sid)
+
         if osc_client is not None:
             now = time.time()
             if now - last_send_time >= SEND_INTERVAL:
                 try:
-                    # 發送每個情緒的機率到 /emotion_prob
                     for label, prob in zip(emotion_labels, last_probabilities):
                         osc_client.send_message("/emotion_prob", [label, float(prob)])
-                    
-                    # 發送最大機率的情緒到 /emotion_label
+
                     top_prob = float(last_probabilities[max_idx])
                     osc_client.send_message("/emotion_label", [last_emotion, top_prob])
-                    
-                    # 發送每個情緒到 /emotion（與 notebook 一致）
+
                     for label, prob in zip(emotion_labels, last_probabilities):
                         osc_client.send_message("/emotion", [label, float(prob)])
-                    
+
                     last_send_time = now
                 except Exception as e:
                     print(f"OSC send error: {e}")
 
-        # 控制速度，模擬真實播放 (如果不加這個，處理速度快的話影片會像快轉)
-        socketio.sleep(0.03) 
+        socketio.sleep(0.03)
 
     cap.release()
-    # 發送處理完成信號，讓前端知道影片已結束
-    emit('processing_complete', {'msg': '影片分析完成'})
-    print("Video processing finished and released.")
+    processing_sessions.pop(sid, None)
+    socketio.emit(
+        'processing_complete',
+        {'msg': f'{source_desc}分析結束', 'mode': mode},
+        to=sid
+    )
+    print(f"{source_desc} processing finished and released for session {sid}.")
+
+
+@socketio.on('start_processing')
+def handle_process_video(data=None):
+    sid = request.sid
+    mode = (data or {}).get('mode', 'upload')
+
+    if processing_sessions.get(sid):
+        emit('error', {'msg': '已有分析進行中，請先停止或等待完成。'})
+        return
+
+    processing_sessions[sid] = {'mode': mode, 'stop': False}
+    socketio.start_background_task(process_video_stream, sid, mode)
+
+
+@socketio.on('stop_processing')
+def handle_stop_processing():
+    sid = request.sid
+    session = processing_sessions.get(sid)
+    if session:
+        session['stop'] = True
+        emit('status', {'msg': '停止指令已送出，請稍候...'})
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    sid = request.sid
+    session = processing_sessions.get(sid)
+    if session:
+        session['stop'] = True
 
 if __name__ == '__main__':
     # 第一次啟動時嘗試載入模型
