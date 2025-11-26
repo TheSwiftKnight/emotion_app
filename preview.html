@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 情緒分析系統 - 預覽</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .progress-bar { transition: width 0.3s ease; }
+        .main-video {
+            width: 75vw;
+            height: 60vh;
+            max-width: 1200px;
+            max-height: 800px;
+            transition: all 0.3s ease;
+        }
+        .main-video.expanded {
+            width: 85vw;
+            height: 70vh;
+        }
+        .control-panel {
+            backdrop-filter: blur(10px);
+            background: rgba(31, 41, 55, 0.9);
+            transition: all 0.3s ease;
+            transform-origin: left center;
+        }
+        .control-panel.collapsed {
+            width: 60px !important;
+            padding: 8px !important;
+        }
+        .control-panel.collapsed .panel-content {
+            display: none !important;
+        }
+        .control-panel.collapsed .collapsed-icon {
+            display: block !important;
+        }
+        .stats-panel {
+            backdrop-filter: blur(10px);
+            background: rgba(31, 41, 55, 0.95);
+        }
+        .toggle-btn {
+            position: absolute;
+            right: -15px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 30px;
+            height: 30px;
+            background: rgba(59, 130, 246, 0.9);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            transition: all 0.3s ease;
+            z-index: 15;
+        }
+        .toggle-btn:hover {
+            background: rgba(59, 130, 246, 1);
+            transform: translateY(-50%) scale(1.1);
+        }
+        .dynamic-bg {
+            transition: background 2s ease;
+        }
+
+        /* 演示動態背景 */
+        body {
+            animation: colorShift 10s infinite;
+        }
+        @keyframes colorShift {
+            0% { background: rgb(17, 24, 39); }
+            20% { background: rgb(76, 74, 66); }   /* Happy 影響 */
+            40% { background: rgb(41, 20, 5); }    /* Angry 影響 */
+            60% { background: rgb(21, 39, 54); }   /* Sad 影響 */
+            80% { background: rgb(44, 0, 63); }    /* Surprise 影響 */
+            100% { background: rgb(17, 24, 39); }
+        }
+    </style>
+</head>
+<body class="dynamic-bg text-white min-h-screen overflow-hidden relative" id="dynamicBody">
+
+    <!-- 標題 -->
+    <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-20">
+        <h1 class="text-3xl font-bold text-center text-blue-400">AI 影片情緒即時分析 (預覽)</h1>
+    </div>
+
+    <!-- 左側控制面板 -->
+    <div class="fixed top-20 left-4 w-80 control-panel p-4 rounded-xl shadow-2xl z-10" id="controlPanel">
+        <button class="toggle-btn" onclick="togglePanel()" id="toggleBtn">
+            ◀
+        </button>
+        
+        <div class="panel-content">
+            <h2 class="text-lg font-semibold mb-3 text-blue-300">控制面板</h2>
+            
+            <div class="mb-4">
+                <input type="file" id="videoInput" accept="video/mp4" class="block w-full text-xs text-gray-400
+                    file:mr-2 file:py-1 file:px-3
+                    file:rounded-full file:border-0
+                    file:text-xs file:font-semibold
+                    file:bg-blue-600 file:text-white
+                    hover:file:bg-blue-700
+                "/>
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <button onclick="alert('演示模式')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition text-sm">
+                    上傳影片 (演示)
+                </button>
+                <button onclick="startDemo()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition text-sm">
+                    開始演示
+                </button>
+            </div>
+        </div>
+        
+        <!-- 收縮時顯示的圖標 -->
+        <div class="collapsed-icon hidden text-center text-blue-300" style="writing-mode: vertical-rl;">
+            控制
+        </div>
+    </div>
+
+    <!-- 中央主影片區域 -->
+    <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-5">
+        <div class="main-video bg-black rounded-xl overflow-hidden border-4 border-gray-600 shadow-2xl relative">
+            <p id="placeholderText" class="absolute inset-0 flex items-center justify-center text-gray-500 text-xl">
+                🎬 更大的影片顯示區域<br>
+                點擊左側箭頭可收縮控制面板<br>
+                背景會根據情緒動態變色
+            </p>
+        </div>
+    </div>
+
+    <!-- 右下角即時數據面板 -->
+    <div class="fixed bottom-4 right-4 w-72 h-80 stats-panel p-3 rounded-xl shadow-2xl z-10 overflow-y-auto">
+        <h2 class="text-base font-semibold mb-3 text-green-300">即時情緒比例</h2>
+        <div id="stats-container" class="space-y-2">
+            <!-- 演示情緒條 -->
+            <div class="mb-2">
+                <div class="flex justify-between mb-1">
+                    <span class="text-xs font-medium text-gray-200">Happy</span>
+                    <span class="text-xs font-medium text-gray-200">45.2%</span>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-2">
+                    <div class="bg-yellow-400 h-2 rounded-full progress-bar" style="width: 45%"></div>
+                </div>
+            </div>
+            <div class="mb-2">
+                <div class="flex justify-between mb-1">
+                    <span class="text-xs font-medium text-gray-200">Neutral</span>
+                    <span class="text-xs font-medium text-gray-200">23.8%</span>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-2">
+                    <div class="bg-gray-400 h-2 rounded-full progress-bar" style="width: 23%"></div>
+                </div>
+            </div>
+            <div class="mb-2">
+                <div class="flex justify-between mb-1">
+                    <span class="text-xs font-medium text-gray-200">Surprise</span>
+                    <span class="text-xs font-medium text-gray-200">18.5%</span>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-2">
+                    <div class="bg-purple-400 h-2 rounded-full progress-bar" style="width: 18%"></div>
+                </div>
+            </div>
+            <div class="mb-2">
+                <div class="flex justify-between mb-1">
+                    <span class="text-xs font-medium text-gray-200">Sad</span>
+                    <span class="text-xs font-medium text-gray-200">8.1%</span>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-2">
+                    <div class="bg-blue-400 h-2 rounded-full progress-bar" style="width: 8%"></div>
+                </div>
+            </div>
+            <div class="text-center text-xs text-gray-400 mt-4">
+                📊 背景會根據這些比例<br>自動調整顏色
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isPanelCollapsed = false;
+
+        // 控制面板收縮/展開功能
+        function togglePanel() {
+            const panel = document.getElementById('controlPanel');
+            const toggleBtn = document.getElementById('toggleBtn');
+            const video = document.querySelector('.main-video');
+            const panelContent = panel.querySelector('.panel-content');
+            const collapsedIcon = panel.querySelector('.collapsed-icon');
+
+            isPanelCollapsed = !isPanelCollapsed;
+
+            if (isPanelCollapsed) {
+                panel.classList.add('collapsed');
+                toggleBtn.innerHTML = '▶';
+                video.classList.add('expanded');
+                panelContent.style.display = 'none';
+                collapsedIcon.classList.remove('hidden');
+            } else {
+                panel.classList.remove('collapsed');
+                toggleBtn.innerHTML = '◀';
+                video.classList.remove('expanded');
+                panelContent.style.display = 'block';
+                collapsedIcon.classList.add('hidden');
+            }
+        }
+
+        function startDemo() {
+            alert('🎉 演示功能：\n\n✅ 控制面板可收縮（點左側箭頭）\n✅ 影片區域更大且可擴展\n✅ 背景會根據情緒比例動態變色\n✅ 右下角緊湊的情緒監測面板\n\n實際使用時需要啟動Python服務器！');
+        }
+    </script>
+
+</body>
+</html>
