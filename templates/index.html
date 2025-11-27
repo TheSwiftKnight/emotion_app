@@ -857,9 +857,16 @@
             }
             
             socket.emit('stop_processing');
+
             const stopBtn = document.getElementById('stopBtn');
             stopBtn.disabled = true;
             stopBtn.textContent = '停止中...';
+
+            // Reset the button text after a short delay to indicate readiness
+            setTimeout(() => {
+                stopBtn.disabled = false;
+                stopBtn.textContent = '停止分析';
+            }, 1000); // Adjust the delay as needed
         }
 
         // 監聽後端傳來的影像幀
