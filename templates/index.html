@@ -45,7 +45,6 @@
         .control-panel.collapsed .collapsed-icon {
             display: block !important;
         }
-        /* 完全重設按鈕樣式 */
         .toggle-btn {
             position: absolute !important;
             right: -22px !important;
@@ -53,7 +52,7 @@
             transform: translateY(-50%) !important;
             width: 44px !important;
             height: 44px !important;
-            background-color: rgba(255, 255, 255, 1) !important; /* Increased opacity */
+            background-color: rgba(255, 255, 255, 1) !important;
             border: 0 !important;
             border-radius: 50% !important;
             color: #1f2937 !important;
@@ -65,7 +64,7 @@
             font-weight: 900 !important;
             font-family: monospace !important;
             z-index: 9999 !important;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2), 0 3px 8px rgba(0, 0, 0, 0.15) !important; /* Enhanced shadow */
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2), 0 3px 8px rgba(0, 0, 0, 0.15) !important;
         }
         .control-panel.collapsed::after {
             content: "";
@@ -80,7 +79,6 @@
         .control-panel.collapsed .toggle-btn {
             left: 58px !important;
         }
-        
         .toggle-btn:hover {
             background-color: rgba(255, 255, 255, 1) !important;
             background: rgba(255, 255, 255, 1) !important;
@@ -99,7 +97,6 @@
             background: rgba(255, 255, 255, 0.9) !important;
             transform: translateY(-50%) scale(0.98) !important;
         }
-
         .video-container {
             transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -109,18 +106,13 @@
         .video-container.panel-collapsed {
             margin-left: 30px;
         }
-        
-        /* 隱藏輸入控制區塊的樣式 */
         .input-controls-section.hidden {
             display: none !important;
         }
-        
         .dynamic-bg {
             transition: background 3s ease-in-out;
             background-attachment: fixed;
         }
-
-        /* 側邊欄與收合按鈕包在一起 */
         .sidebar-wrapper {
             position: fixed;
             top: 0;
@@ -133,15 +125,6 @@
         .sidebar-wrapper.collapsed {
             transform: translateX(-260px);
         }
-        .control-panel {
-            position: relative;
-            width: 320px;
-            min-width: 16px;
-            max-width: 320px;
-            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        /* 側欄與收合按鈕的容器 */
         .sidebar-container {
             position: fixed;
             top: 0;
@@ -152,120 +135,10 @@
             display: flex;
             flex-direction: row;
             align-items: center;
-            transition: transform 0.48s ease-in-out; /* Slightly increased duration for fine-tuning */
+            transition: transform 0.45s ease-in-out;
         }
         .sidebar-container.collapsed {
-            transform: translateX(-304px); /* 收合剩下16px */
-            border-right: 1px solid #fff !important;
-            background: rgba(34, 34, 34, 0.75) !important;
-        }
-        .control-panel {
-            position: relative;
-            width: 320px;
-            min-width: 16px;
-            max-width: 320px;
-            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .toggle-btn {
-            position: absolute !important;
-            right: -22px !important;
-            top: 50% !important;
-            transform: translateY(-50%) !important;
-            width: 44px !important;
-            height: 44px !important;
-            background-color: rgba(255, 255, 255, 1) !important;
-            border: 0 !important;
-            border-radius: 50% !important;
-            color: #1f2937 !important;
-            cursor: pointer !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            font-size: 20px !important;
-            font-weight: 900 !important;
-            font-family: monospace !important;
-            z-index: 9999 !important;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2), 0 3px 8px rgba(0, 0, 0, 0.15) !important;
-        }
-        .control-panel.collapsed .toggle-btn {
-            left: 58px !important;
-        }
-        
-        .toggle-btn:hover {
-            background-color: rgba(255, 255, 255, 1) !important;
-            background: rgba(255, 255, 255, 1) !important;
-            transform: translateY(-50%) scale(1.02) !important;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2), 0 3px 8px rgba(0, 0, 0, 0.15) !important;
-        }
-        .toggle-btn:focus {
-            outline: 0 !important;
-            outline-style: none !important;
-            outline-width: 0 !important;
-            outline-color: transparent !important;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.12) !important;
-        }
-        .toggle-btn:active {
-            background-color: rgba(255, 255, 255, 0.9) !important;
-            background: rgba(255, 255, 255, 0.9) !important;
-            transform: translateY(-50%) scale(0.98) !important;
-        }
-
-        .video-container {
-            transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .video-container.panel-open {
-            margin-left: 160px;
-        }
-        .video-container.panel-collapsed {
-            margin-left: 30px;
-        }
-        
-        /* 隱藏輸入控制區塊的樣式 */
-        .input-controls-section.hidden {
-            display: none !important;
-        }
-        
-        .dynamic-bg {
-            transition: background 3s ease-in-out;
-            background-attachment: fixed;
-        }
-
-        /* 側邊欄與收合按鈕包在一起 */
-        .sidebar-wrapper {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100vh;
-            width: 320px;
-            z-index: 20;
-            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .sidebar-wrapper.collapsed {
-            transform: translateX(-260px);
-        }
-        .control-panel {
-            position: relative;
-            width: 320px;
-            min-width: 16px;
-            max-width: 320px;
-            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        /* 側欄與收合按鈕的容器 */
-        .sidebar-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100vh;
-            width: 320px;
-            z-index: 20;
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            transition: transform 0.45s ease-in-out; /* Slightly increased duration for fine-tuning */
-        }
-        .sidebar-container.collapsed {
-            transform: translateX(-304px); /* 收合剩下16px */
+            transform: translateX(-304px);
             border-right: 1px solid #fff !important;
             background: rgba(34, 34, 34, 0.75) !important;
         }
@@ -273,22 +146,14 @@
 </head>
 <body class="dynamic-bg text-white min-h-screen overflow-hidden relative" id="dynamicBody" style="background: rgb(17, 24, 39);">
 
-    <!-- 標題 -->
-    <!-- <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 video-container panel-open" id="titleArea">
-        <h1 class="text-3xl font-bold text-center text-blue-400">AI 影片情緒即時分析</h1>
-    </div> -->
-
-    <!-- 左側整合控制面板 -->
     <div id="sidebarWrapper" class="sidebar-wrapper">
-        <!-- 側欄與收合按鈕包進一個container -->
         <div id="sidebarContainer" class="sidebar-container">
             <div class="fixed top-0 left-0 w-80 h-full control-panel p-6 shadow-2xl z-10" id="controlPanel">
                 <div class="panel-content h-full flex flex-col">
-                    <!-- 面板標題 -->
                     <div class="mb-6 pt-4 flex-shrink-0">
                         <h1 class="text-xl font-bold text-white text-center mb-6">AI 情緒分析系統</h1>
                     </div>
-                    
+
                     <!-- 控制部分 -->
                     <div class="mb-6 flex-shrink-0 input-controls-section" id="inputControlsSection">
                         <h2 class="text-lg font-semibold mb-3 text-white">輸入來源與控制</h2>
@@ -323,37 +188,64 @@
                         </div>
 
                         <div id="cameraHint" class="hidden text-xs text-gray-400 mb-4">
-                            將使用此伺服器連線的攝影機。開始分析後可隨時停止。
+                            將使用此伺服器連線的攝影機。未來會支援即時模式。
                         </div>
 
                         <div class="flex flex-col gap-2 mb-4">
-                            <button onclick="startProcessing()" id="startBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 text-sm rounded transition disabled:opacity-50" disabled>
-                                開始分析
+                            <!-- PHASE1 按鈕：只有分析 + 快取 -->
+                            <button onclick="startPhase1()" id="phase1Btn"
+                                class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 text-sm rounded transition disabled:opacity-50"
+                                disabled>
+                                PHASE 1：分析（預先運算）
+                            </button>
+
+                            <!-- PHASE2 按鈕：只播放（用快取結果） -->
+                            <button onclick="startPhase2()" id="phase2Btn"
+                                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 text-sm rounded transition disabled:opacity-50"
+                                disabled>
+                                PLAY（PHASE 2 播放）
+                            </button>
+                            <button onclick="startCamera()" id="cameraStartBtn"
+                                class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 text-sm rounded transition hidden">
+                                開始即時偵測
+                            </button>
+                            <button onclick="stopCamera()" id="cameraStopBtn"
+                                class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 text-sm rounded transition hidden">
+                                停止即時偵測
                             </button>
                         </div>
                     </div>
-                    
-                    <!-- 停止按鈕（獨立於輸入控制區塊之外） -->
+                    <!-- Phase1 進度條 -->
+                    <div id="phase1ProgressContainer" class="mb-4 hidden">
+                        <div class="flex justify-between mb-1">
+                            <span class="text-xs text-gray-200">Phase 1 進度</span>
+                            <span id="phase1ProgressLabel" class="text-xs text-gray-200">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2">
+                            <div id="phase1ProgressBar"
+                                class="bg-green-500 h-2 rounded-full progress-bar"
+                                style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- 停止按鈕 -->
                     <div class="mb-6 flex-shrink-0" id="stopBtnContainer" style="display: none;">
                         <button onclick="stopProcessing()" id="stopBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 text-sm rounded transition w-full">
-                            停止分析
+                            停止
                         </button>
                     </div>
-                    
-                    <!-- 分隔線 -->
+
                     <div class="border-t border-gray-600 my-4 flex-shrink-0"></div>
-                    
-                    <!-- 情緒比例部分 -->
+
+                    <!-- 情緒比例 -->
                     <div class="flex-1 flex flex-col min-h-0">
                         <h2 class="text-base font-semibold mb-3 text-white flex-shrink-0">即時情緒比例</h2>
                         <div id="stats-container" class="space-y-2 overflow-y-auto flex-1">
-                            <!-- 情緒長條圖會動態插入這裡 -->
-                            <!-- 預設顯示 -->
                             <div class="text-gray-500 text-center py-6 text-sm">等待數據中...</div>
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="collapsed-icon hidden text-center text-gray-300" style="writing-mode: vertical-rl;">
                 </div>
             </div>
@@ -361,12 +253,7 @@
         </div>
     </div>
 
-    <!-- 獨立的收合按鈕（不受側邊欄CSS影響） -->
-    <!-- <button class="toggle-btn" onclick="togglePanel()" id="toggleBtn">
-        <
-    </button> -->
-
-    <!-- 主影片區域 -->
+    <!-- 主影片區 -->
     <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-5 video-container panel-open" id="videoArea">
         <div id="videoContainer" class="main-video bg-black rounded-xl overflow-hidden shadow-2xl relative" style="width: 60vw; aspect-ratio: 16/9; max-width: 800px; border: 8px solid rgba(128, 128, 128, 0.3); transition: all 0.3s ease, border-color 0.5s ease, box-shadow 0.5s ease;">
             <p id="placeholderText" class="absolute inset-0 flex items-center justify-center text-gray-500 text-xl">
@@ -375,8 +262,6 @@
             <img id="processedFrame" class="w-full h-full object-contain hidden" />
         </div>
     </div>
-
-
 
     <script>
         const socket = io();
@@ -390,21 +275,21 @@
             'Disgust': 'bg-green-500',
             'Neutral': 'bg-gray-400'
         };
-
-        // 情緒對應的背景顏色（高飽和度鮮豔RGB值）
         const emotionBgColors = {
-            'Happy': [255, 215, 0],        // 鮮豔金黃色
-            'Angry': [255, 20, 20],        // 鮮豔紅色
-            'Sad': [30, 144, 255],         // 鮮豔藍色
-            'Surprise': [186, 85, 211],    // 鮮豔紫色
-            'Fear': [75, 0, 130],          // 深紫藍色
-            'Disgust': [50, 205, 50],      // 鮮豔綠色
-            'Neutral': [169, 169, 169]     // 中性灰色
+            'Happy': [255, 215, 0],
+            'Angry': [255, 20, 20],
+            'Sad': [30, 144, 255],
+            'Surprise': [186, 85, 211],
+            'Fear': [75, 0, 130],
+            'Disgust': [50, 205, 50],
+            'Neutral': [169, 169, 169]
         };
 
         let isPanelCollapsed = false;
+        let isProcessing = false;
+        let inputMode = 'upload';
+        let hasUploadedVideo = false;
 
-        // 控制面板收縮/展開功能
         function togglePanel() {
             const container = document.getElementById('sidebarContainer');
             const panel = document.getElementById('controlPanel');
@@ -413,7 +298,6 @@
             const panelContent = panel.querySelector('.panel-content');
             const collapsedIcon = panel.querySelector('.collapsed-icon');
             const videoArea = document.getElementById('videoArea');
-            const titleArea = document.getElementById('titleArea');
 
             isPanelCollapsed = !isPanelCollapsed;
 
@@ -422,56 +306,39 @@
                 panel.classList.add('collapsed');
                 toggleBtn.innerHTML = '>';
                 video.classList.add('expanded');
-                panelContent.classList.add('hidden'); // Use CSS class instead of modifying style directly
+                panelContent.classList.add('hidden');
                 collapsedIcon.classList.remove('hidden');
 
-                // 影片和標題移到中間
                 videoArea.classList.remove('panel-open');
                 videoArea.classList.add('panel-collapsed');
-                titleArea.classList.remove('panel-open');
-                titleArea.classList.add('panel-collapsed');
             } else {
                 container.classList.remove('collapsed');
                 panel.classList.remove('collapsed');
                 toggleBtn.innerHTML = '<';
                 video.classList.remove('expanded');
-                panelContent.classList.remove('hidden'); // Use CSS class instead of modifying style directly
+                panelContent.classList.remove('hidden');
                 collapsedIcon.classList.add('hidden');
 
-                // 影片和標題移到右側
                 videoArea.classList.remove('panel-collapsed');
                 videoArea.classList.add('panel-open');
-                titleArea.classList.remove('panel-collapsed');
-                titleArea.classList.add('panel-open');
             }
         }
 
-        // 根據情緒比例更新按鈕背景顏色
         function updateToggleButtonBg(emotionData) {
             const toggleBtn = document.getElementById('toggleBtn');
             if (!toggleBtn || !emotionData) return;
-            
-            // 強制重設按鈕樣式
+
             toggleBtn.style.setProperty('border', '0', 'important');
-            toggleBtn.style.setProperty('border-style', 'none', 'important');
-            toggleBtn.style.setProperty('border-width', '0', 'important');
-            toggleBtn.style.setProperty('border-color', 'transparent', 'important');
             toggleBtn.style.setProperty('outline', '0', 'important');
-            toggleBtn.style.setProperty('outline-style', 'none', 'important');
-            toggleBtn.style.setProperty('outline-width', '0', 'important');
-            toggleBtn.style.setProperty('outline-color', 'transparent', 'important');
-            
-            // 找到最高比例的情緒
+
             let dominantEmotion = null;
             let maxPercentage = 0;
-            
             for (const [emotion, percentage] of Object.entries(emotionData)) {
                 if (emotionBgColors[emotion] && percentage > maxPercentage && percentage > 10) {
                     dominantEmotion = emotion;
                     maxPercentage = percentage;
                 }
             }
-            
             if (dominantEmotion) {
                 const [r, g, b] = emotionBgColors[dominantEmotion];
                 const opacity = Math.min(maxPercentage / 100 * 0.8, 0.7);
@@ -479,100 +346,63 @@
                 toggleBtn.style.setProperty('background-color', bgColor, 'important');
                 toggleBtn.style.setProperty('background', bgColor, 'important');
                 toggleBtn.style.setProperty('box-shadow', `0 4px 15px rgba(${r}, ${g}, ${b}, 0.3), 0 2px 4px rgba(0, 0, 0, 0.12)`, 'important');
-                console.log(`Toggle button bg updated: ${dominantEmotion} (${maxPercentage.toFixed(1)}%) - ${bgColor}`);
             } else {
-                // 無明顯情緒，使用預設白色
                 toggleBtn.style.setProperty('background-color', 'rgba(255, 255, 255, 0.95)', 'important');
                 toggleBtn.style.setProperty('background', 'rgba(255, 255, 255, 0.95)', 'important');
                 toggleBtn.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.12)', 'important');
             }
         }
 
-        // 根據情緒比例更新背景顏色
         function updateDynamicBackground(emotionData) {
-            console.log('=== updateDynamicBackground called ===');
-            console.log('Emotion data:', emotionData);
-            
-            // 過濾出有意義的情緒數據（大於5%）
             const significantEmotions = [];
             for (const [emotion, percentage] of Object.entries(emotionData)) {
                 if (emotionBgColors[emotion] && percentage > 5) {
                     significantEmotions.push({ emotion, percentage });
                 }
             }
-            
-            // 按比例排序（由高到低）
             significantEmotions.sort((a, b) => b.percentage - a.percentage);
-            
-            console.log('Significant emotions for background:', significantEmotions);
-            
+
             const bodyElement = document.body;
-            if (!bodyElement) {
-                console.error('Body element not found!');
-                return;
-            }
-            
+            if (!bodyElement) return;
+
             if (significantEmotions.length === 0) {
-                // 沒有明顯情緒，使用預設背景
                 bodyElement.style.background = 'linear-gradient(135deg, #1f2937 0%, #111827 100%)';
-                console.log('No significant emotions, using default background');
                 return;
             }
-            
+
             if (significantEmotions.length === 1) {
-                // 只有一種主要情緒，根據強度調整飽和度
                 const [r, g, b] = emotionBgColors[significantEmotions[0].emotion];
                 const percentage = significantEmotions[0].percentage;
-                
+
                 let emotionColor, darkColor;
-                
                 if (percentage >= 80) {
-                    // 高強度情緒，使用純色或接近純色
-                    const opacity = Math.min(percentage / 100 * 0.7, 0.6); // 適中不透明度
+                    const opacity = Math.min(percentage / 100 * 0.7, 0.6);
                     emotionColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
-                    darkColor = `rgba(${r * 0.3}, ${g * 0.3}, ${b * 0.3}, 0.8)`; // 使用同色系的深色
+                    darkColor = `rgba(${r * 0.3}, ${g * 0.3}, ${b * 0.3}, 0.8)`;
                 } else if (percentage >= 50) {
-                    // 中等強度情緒
                     const opacity = percentage / 100 * 0.5;
                     emotionColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
                     darkColor = `rgba(${r * 0.2}, ${g * 0.2}, ${b * 0.2}, 0.9)`;
                 } else {
-                    // 低強度情緒
                     const opacity = percentage / 100 * 0.4;
                     emotionColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
                     darkColor = 'rgba(17, 24, 39, 0.95)';
                 }
-                
+
                 bodyElement.style.background = `linear-gradient(135deg, ${emotionColor} 0%, ${darkColor} 100%)`;
-                console.log(`Single emotion background: ${significantEmotions[0].emotion} (${percentage}%) - ${emotionColor} to ${darkColor}`);
             } else {
-                // 多種情緒，創建漸層背景
-                const topEmotions = significantEmotions.slice(0, 3); // 最多取前3種情緒
-                
-                console.log('Creating gradient background with emotions:', topEmotions);
-                
-                // 為每種情緒創建顏色
-                const gradientColors = topEmotions.map((item, index) => {
+                const topEmotions = significantEmotions.slice(0, 3);
+                const gradientColors = topEmotions.map(item => {
                     const [r, g, b] = emotionBgColors[item.emotion];
                     const percentage = item.percentage;
-                    
-                    // 根據情緒強度調整不透明度
                     let opacity;
-                    if (percentage >= 60) {
-                        opacity = 0.6; // 高強度
-                    } else if (percentage >= 30) {
-                        opacity = 0.45;  // 中等強度
-                    } else {
-                        opacity = 0.3; // 低強度
-                    }
-                    
+                    if (percentage >= 60) opacity = 0.6;
+                    else if (percentage >= 30) opacity = 0.45;
+                    else opacity = 0.3;
                     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
                 });
-                
-                // 添加深色背景以保持可讀性
                 gradientColors.push('rgba(17, 24, 39, 0.85)');
-                
-                // 根據情緒數量創建不同的漸層
+
                 let gradientBackground;
                 if (topEmotions.length === 2) {
                     gradientBackground = `linear-gradient(135deg, ${gradientColors[0]} 0%, ${gradientColors[1]} 70%, ${gradientColors[2]} 100%)`;
@@ -581,127 +411,48 @@
                 } else {
                     gradientBackground = `linear-gradient(135deg, ${gradientColors[0]} 0%, ${gradientColors[1]} 100%)`;
                 }
-                
                 bodyElement.style.background = gradientBackground;
-                
-                console.log('Applied gradient background:', gradientBackground);
-                console.log('Top emotions for gradient:');
-                topEmotions.forEach((item, index) => {
-                    console.log(`  ${index + 1}. ${item.emotion}: ${item.percentage.toFixed(1)}% -> ${gradientColors[index]}`);
-                });
             }
-            
-            console.log('=== updateDynamicBackground completed ===');
         }
 
-        // 根據情緒比例更新影片外框顏色
         function updateVideoBorder(emotionData) {
-            console.log('=== updateVideoBorder called ===');
-            console.log('Emotion data:', emotionData);
-            
-            // 過濾出有意義的情緒數據（大於5%）
-            const significantEmotions = [];
-            for (const [emotion, percentage] of Object.entries(emotionData)) {
-                if (emotionBgColors[emotion] && percentage > 5) {
-                    significantEmotions.push({ emotion, percentage });
-                }
-            }
-            
-            // 按比例排序（由高到低）
-            significantEmotions.sort((a, b) => b.percentage - a.percentage);
-            
-            console.log('Significant emotions:', significantEmotions);
-            
             const videoContainer = document.getElementById('videoContainer');
-            if (!videoContainer) {
-                console.error('Video container not found!');
-                return;
-            }
-            
-            if (significantEmotions.length === 0) {
-                // 沒有明顯情緒，使用預設邊框
-                videoContainer.style.borderColor = 'rgba(128, 128, 128, 0.3)';
-                videoContainer.style.boxShadow = '0 25px 50px -12px rgba(0, 0, 0, 0.25)';
-                console.log('No significant emotions, using default border');
-                return;
-            }
-            
-            if (significantEmotions.length === 1) {
-                // 只有一種主要情緒，設置單色邊框和光暈
-                const [r, g, b] = emotionBgColors[significantEmotions[0].emotion];
-                const percentage = significantEmotions[0].percentage;
-                
-                let borderOpacity, glowIntensity;
-                
-                if (percentage >= 80) {
-                    // 高強度情緒，強烈邊框和光暈
-                    borderOpacity = 0.9;
-                    glowIntensity = Math.min(percentage / 100 * 30, 25);
-                } else if (percentage >= 50) {
-                    // 中等強度情緒
-                    borderOpacity = 0.7;
-                    glowIntensity = Math.min(percentage / 100 * 20, 15);
-                } else {
-                    // 低強度情緒
-                    borderOpacity = 0.5;
-                    glowIntensity = Math.min(percentage / 100 * 15, 10);
+            if (!videoContainer) return;
+
+            // 1. 找最大情緒
+            let topEmotion = null;
+            let topValue = 0;
+            for (const [emo, val] of Object.entries(emotionData)) {
+                if (val > topValue) {
+                    topValue = val;
+                    topEmotion = emo;
                 }
-                
-                const borderColor = `rgba(${r}, ${g}, ${b}, ${borderOpacity})`;
-                const glowColor = `rgba(${r}, ${g}, ${b}, ${borderOpacity * 0.6})`;
-                
-                videoContainer.style.borderColor = borderColor;
-                videoContainer.style.boxShadow = `0 0 ${glowIntensity}px ${glowColor}, 0 25px 50px -12px rgba(0, 0, 0, 0.25)`;
-                
-                console.log(`Single emotion border: ${significantEmotions[0].emotion} (${percentage}%) - ${borderColor} with ${glowIntensity}px glow`);
-            } else {
-                // 多種情緒，創建漸變邊框效果
-                const topEmotions = significantEmotions.slice(0, 2); // 取前2種主要情緒
-                
-                console.log('Creating gradient border with emotions:', topEmotions);
-                
-                // 為每種情緒創建顏色
-                const borderColors = topEmotions.map((item, index) => {
-                    const [r, g, b] = emotionBgColors[item.emotion];
-                    const percentage = item.percentage;
-                    
-                    // 根據情緒強度調整不透明度
-                    let opacity;
-                    if (percentage >= 60) {
-                        opacity = 0.8; // 高強度
-                    } else if (percentage >= 30) {
-                        opacity = 0.65;  // 中等強度
-                    } else {
-                        opacity = 0.5; // 低強度
-                    }
-                    
-                    return { color: `rgba(${r}, ${g}, ${b}, ${opacity})`, percentage };
-                });
-                
-                // 創建漸變邊框效果
-                const primaryColor = borderColors[0].color;
-                const secondaryColor = borderColors[1]?.color || primaryColor;
-                
-                // 計算光暈強度（基於最強情緒）
-                const maxPercentage = Math.max(...topEmotions.map(e => e.percentage));
-                const glowIntensity = Math.min(maxPercentage / 100 * 20, 18);
-                
-                // 設置漸變邊框（通過box-shadow模擬）
-                videoContainer.style.borderColor = primaryColor;
-                videoContainer.style.boxShadow = `
-                    0 0 ${glowIntensity}px ${primaryColor},
-                    0 0 ${glowIntensity * 1.5}px ${secondaryColor},
-                    0 25px 50px -12px rgba(0, 0, 0, 0.25)
-                `;
-                
-                console.log(`Multi-emotion border: ${topEmotions[0].emotion} (${topEmotions[0].percentage.toFixed(1)}%) + ${topEmotions[1]?.emotion} (${topEmotions[1]?.percentage.toFixed(1) || 0}%)`);
-                console.log('Applied border colors:', primaryColor, secondaryColor);
             }
-            
-            console.log('=== updateVideoBorder completed ===');
+
+            // 2. 如果沒有偵測到情緒 → 回復預設
+            if (!topEmotion || topValue < 1) {
+                videoContainer.style.borderColor = 'rgba(128,128,128,0.3)';
+                videoContainer.style.boxShadow = 'none';
+                return;
+            }
+
+            // 3. 抓顏色
+            const [r, g, b] = emotionBgColors[topEmotion];
+
+            // 透明度依照情緒強度（最大 0.9）
+            const opacity = Math.min(topValue / 100 * 0.9, 0.9);
+
+            const borderColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+            const glowColor = `rgba(${r}, ${g}, ${b}, ${opacity * 0.6})`;
+
+            // 4. 修改外框與光暈
+            videoContainer.style.borderColor = borderColor;
+            videoContainer.style.boxShadow =
+                `0 0 ${10 + topValue / 10}px ${glowColor}, 
+                0 25px 50px -12px rgba(0,0,0,0.25)`;
         }
 
-        // 初始化情緒條
+
         function initStats() {
             const container = document.getElementById('stats-container');
             container.innerHTML = '';
@@ -720,49 +471,70 @@
                 container.innerHTML += html;
             });
         }
+        function resetPhase1Progress() {
+            const container = document.getElementById('phase1ProgressContainer');
+            const bar = document.getElementById('phase1ProgressBar');
+            const label = document.getElementById('phase1ProgressLabel');
+            if (!container || !bar || !label) return;
 
-        let isProcessing = false;
-        let inputMode = 'upload';
-        let hasUploadedVideo = false;
+            bar.style.width = '0%';
+            label.textContent = '0%';
+            // 預設還是顯示，或想隱藏可以 container.classList.add('hidden');
+        }
+
+        function showPhase1Progress() {
+            const container = document.getElementById('phase1ProgressContainer');
+            if (container) container.classList.remove('hidden');
+        }
 
         function setInputMode(mode) {
             if (isProcessing) {
                 alert('分析進行中，請先停止再切換來源。');
                 return;
             }
+
             inputMode = mode;
+
             const uploadControls = document.getElementById('uploadControls');
             const cameraHint = document.getElementById('cameraHint');
-            const startBtn = document.getElementById('startBtn');
-            const modeUploadBtn = document.getElementById('mode-upload');
-            const modeCameraBtn = document.getElementById('mode-camera');
-
+            const phase1Btn = document.getElementById('phase1Btn');
+            const phase2Btn = document.getElementById('phase2Btn');
+            const cameraStartBtn = document.getElementById('cameraStartBtn');
+            const cameraStopBtn = document.getElementById('cameraStopBtn');
             if (mode === 'upload') {
                 uploadControls.classList.remove('hidden');
                 cameraHint.classList.add('hidden');
-                startBtn.disabled = !hasUploadedVideo;
-                modeUploadBtn.classList.add('bg-blue-600');
-                modeUploadBtn.classList.remove('bg-gray-700', 'hover:bg-gray-600');
-                modeCameraBtn.classList.remove('bg-blue-600');
-                modeCameraBtn.classList.add('bg-gray-700', 'hover:bg-gray-600');
-            } else {
-                uploadControls.classList.add('hidden');
-                cameraHint.classList.remove('hidden');
-                startBtn.disabled = false;
-                modeCameraBtn.classList.add('bg-blue-600');
-                modeCameraBtn.classList.remove('bg-gray-700', 'hover:bg-gray-600');
-                modeUploadBtn.classList.remove('bg-blue-600');
-                modeUploadBtn.classList.add('bg-gray-700', 'hover:bg-gray-600');
+
+                phase1Btn.disabled = !hasUploadedVideo;
+                phase2Btn.disabled = true;
+
+                cameraStartBtn.classList.add('hidden');
             }
 
-            startBtn.textContent = '開始分析';
-            
-            // 確保停止按鈕容器隱藏
-            const stopBtnContainer = document.getElementById('stopBtnContainer');
-            if (stopBtnContainer) {
-                stopBtnContainer.style.display = 'none';
+            if (mode === "camera") {
+                uploadControls.classList.add("hidden");
+                cameraHint.classList.remove("hidden");
+
+                phase1Btn.disabled = true;
+                phase2Btn.disabled = true;
+
+                const cameraStartBtn = document.getElementById("cameraStartBtn");
+                const cameraStopBtn = document.getElementById("cameraStopBtn");
+
+                cameraStartBtn.classList.remove("hidden");
+                cameraStopBtn.classList.remove("hidden");
+
+                // ⭐ 中央畫面切到 camera 模式
+                const img = document.getElementById("processedFrame");
+                const placeholder = document.getElementById("placeholderText");
+
+                placeholder.style.display = "none";
+                img.classList.remove("hidden");
+                img.style.display = "block";
             }
+
         }
+
 
         async function uploadVideo() {
             const fileInput = document.getElementById('videoInput');
@@ -774,22 +546,19 @@
 
             const btn = document.getElementById('uploadBtn');
             btn.textContent = "上傳中...";
-            
-            // 重置處理狀態
             isProcessing = false;
-            
+
             try {
                 const res = await fetch('/upload', { method: 'POST', body: formData });
                 if (res.ok) {
-                    alert("上傳成功！請按下「開始分析」");
+                    alert("上傳成功！請先按 PHASE1 做分析");
                     hasUploadedVideo = true;
-                    const startBtn = document.getElementById('startBtn');
-                    if (inputMode === 'upload') {
-                        startBtn.disabled = false;
-                        startBtn.textContent = '開始分析';
-                    }
+                    const phase1Btn = document.getElementById('phase1Btn');
+                    const phase2Btn = document.getElementById('phase2Btn');
+                    phase1Btn.disabled = false;
+                    phase2Btn.disabled = true;
+
                     initStats();
-                    // 重置畫面
                     document.getElementById('placeholderText').style.display = 'flex';
                     document.getElementById('processedFrame').style.display = 'none';
                 } else {
@@ -802,157 +571,199 @@
                 btn.textContent = "上傳影片";
             }
         }
+        function startCamera(){
+            if(isProcessing) return;
+            isProcessing = true;
 
-        function startProcessing() {
+            // ⭐ 立即顯示攝影機畫面
+            document.getElementById("placeholderText").style.display="none";
+            const img=document.getElementById("processedFrame");
+            img.classList.remove("hidden");
+            img.style.display="block";
+
+            initStats();
+            socket.emit("start_camera");
+        }
+
+        function stopCamera() {
+            socket.emit('stop_camera');
+        }
+
+        // PHASE1：只分析，不播放
+        function startPhase1() {
             if (isProcessing) {
-                alert("正在處理中，請稍候...");
+                alert("目前正在處理中，請先停止或等完成。");
+                return;
+            }
+            if (inputMode !== 'upload') {
+                alert("目前 PHASE1 僅支援上傳影片模式。");
+                return;
+            }
+            if (!hasUploadedVideo) {
+                alert("請先上傳影片檔案。");
                 return;
             }
 
-            if (inputMode === 'upload' && !hasUploadedVideo) {
-                alert("請先上傳影片檔案");
-                return;
-            }
-            
             isProcessing = true;
             initStats();
-            
-            // 隱藏輸入控制區塊
+
+        // 🆕 顯示進度條＆歸零
+            showPhase1Progress();
+            resetPhase1Progress();
+
             const inputControlsSection = document.getElementById('inputControlsSection');
-            if (inputControlsSection) {
-                inputControlsSection.classList.add('hidden');
-            }
-            
-            // 顯示停止按鈕
+            if (inputControlsSection) inputControlsSection.classList.add('hidden');
+
             const stopBtnContainer = document.getElementById('stopBtnContainer');
-            if (stopBtnContainer) {
-                stopBtnContainer.style.display = 'block';
+            if (stopBtnContainer) stopBtnContainer.style.display = 'block';
+
+            const phase1Btn = document.getElementById('phase1Btn');
+            const phase2Btn = document.getElementById('phase2Btn');
+            phase1Btn.disabled = true;
+            phase2Btn.disabled = true;
+
+            // PHASE1 不一定要畫畫面，但先把 placeholder 留著
+            document.getElementById('placeholderText').style.display = 'flex';
+            document.getElementById('processedFrame').classList.add('hidden');
+
+            socket.emit('start_phase1', { mode: inputMode });
+        }
+
+        // PHASE2：只播放（用快取結果）
+        function startPhase2() {
+            if (isProcessing) {
+                alert("目前正在處理中，請先停止或等完成。");
+                return;
             }
-            
+            if (!hasUploadedVideo) {
+                alert("請先上傳影片並完成 PHASE1 分析。");
+                return;
+            }
+
+            isProcessing = true;
+            initStats();
+
+            const inputControlsSection = document.getElementById('inputControlsSection');
+            if (inputControlsSection) inputControlsSection.classList.add('hidden');
+
+            const stopBtnContainer = document.getElementById('stopBtnContainer');
+            if (stopBtnContainer) stopBtnContainer.style.display = 'block';
+
             document.getElementById('placeholderText').style.display = 'none';
             const img = document.getElementById('processedFrame');
             img.classList.remove('hidden');
             img.style.display = 'block';
-            
-            const startBtn = document.getElementById('startBtn');
-            startBtn.disabled = true;
-            startBtn.textContent = '分析中...';
 
-            socket.emit('start_processing', { mode: inputMode });
+            const phase1Btn = document.getElementById('phase1Btn');
+            const phase2Btn = document.getElementById('phase2Btn');
+            phase1Btn.disabled = true;
+            phase2Btn.disabled = true;
+
+            socket.emit('start_phase2', { mode: inputMode });
         }
 
         function stopProcessing() {
             if (!isProcessing) return;
-            
-            // 顯示輸入控制區塊
-            const inputControlsSection = document.getElementById('inputControlsSection');
-            if (inputControlsSection) {
-                inputControlsSection.classList.remove('hidden');
-            }
-            
-            // 隱藏停止按鈕
-            const stopBtnContainer = document.getElementById('stopBtnContainer');
-            if (stopBtnContainer) {
-                stopBtnContainer.style.display = 'none';
-            }
-            
+
             socket.emit('stop_processing');
 
             const stopBtn = document.getElementById('stopBtn');
             stopBtn.disabled = true;
             stopBtn.textContent = '停止中...';
 
-            // Reset the button text after a short delay to indicate readiness
             setTimeout(() => {
                 stopBtn.disabled = false;
-                stopBtn.textContent = '停止分析';
-            }, 1000); // Adjust the delay as needed
+                stopBtn.textContent = '停止';
+            }, 800);
         }
 
-        // 監聽後端傳來的影像幀
-        socket.on('video_frame', (data) => {
-            if (!isProcessing) return; // 如果處理已停止，不再更新畫面
-            const img = document.getElementById('processedFrame');
-            img.src = `data:image/jpeg;base64,${data.image}`;
+        socket.on("video_frame", (data) => {
+            if (inputMode !== "camera" && inputMode !== "upload") return;
+            if (!isProcessing) return;
+
+            const img = document.getElementById("processedFrame");
+            img.src = "data:image/jpeg;base64," + data.image;
         });
 
-        // 監聽後端傳來的數據
+
         socket.on('emotion_update', (data) => {
-            console.log('=== EMOTION UPDATE RECEIVED ===');
-            console.log('Raw data received:', data);
-            
-            // data 格式: { Happy: 87.5, Angry: 10.2, ... }
             for (const [key, value] of Object.entries(data)) {
                 const bar = document.getElementById(`bar-${key}`);
                 const val = document.getElementById(`val-${key}`);
                 if (bar && val) {
                     bar.style.width = `${value}%`;
                     val.innerText = `${value.toFixed(1)}%`;
-                } else {
-                    console.warn(`Could not find elements for ${key}`);
                 }
             }
-            
-            // 更新動態背景、外框與按鈕顏色
-            console.log('Calling updateDynamicBackground, updateVideoBorder and updateToggleButtonBg with received data...');
             updateDynamicBackground(data);
             updateVideoBorder(data);
             updateToggleButtonBg(data);
         });
 
+        socket.on('phase1_progress', (data) => {
+            const container = document.getElementById('phase1ProgressContainer');
+            const bar = document.getElementById('phase1ProgressBar');
+            const label = document.getElementById('phase1ProgressLabel');
+            if (!bar || !label) return;
+
+            if (container && container.classList.contains('hidden')) {
+                container.classList.remove('hidden');
+            }
+
+            const p = Math.max(0, Math.min(100, data.progress || 0));
+            bar.style.width = p + '%';
+            label.textContent = p.toFixed(1) + '%';
+        });
+
         socket.on('processing_complete', (data) => {
             isProcessing = false;
-            const startBtn = document.getElementById('startBtn');
+            const phase1Btn = document.getElementById('phase1Btn');
+            const phase2Btn = document.getElementById('phase2Btn');
             const stopBtnContainer = document.getElementById('stopBtnContainer');
-            
-            // 隱藏停止按鈕
-            if (stopBtnContainer) {
-                stopBtnContainer.style.display = 'none';
-            }
-            
-            // 顯示輸入控制區塊
             const inputControlsSection = document.getElementById('inputControlsSection');
-            if (inputControlsSection) {
-                inputControlsSection.classList.remove('hidden');
+
+            if (stopBtnContainer) stopBtnContainer.style.display = 'none';
+            if (inputControlsSection) inputControlsSection.classList.remove('hidden');
+
+            const modeFromServer = data?.mode || 'unknown';
+
+            if (modeFromServer === 'phase1') {
+                // Phase1 做完 => 可以重跑 Phase1 / 也可以 PLAY Phase2
+                phase1Btn.disabled = !hasUploadedVideo;
+                phase2Btn.disabled = !hasUploadedVideo;
+                // 🆕 Phase1 結束，維持 100% 然後 1 秒後隱藏
+                setTimeout(() => {
+                    const container = document.getElementById('phase1ProgressContainer');
+                    if (container) container.classList.add('hidden');
+                }, 1000);
+            } else if (modeFromServer === 'phase2') {
+                // Phase2 播放結束 => 可再播 / 也可重新跑 Phase1
+                phase1Btn.disabled = !hasUploadedVideo;
+                phase2Btn.disabled = !hasUploadedVideo;
+                document.getElementById('placeholderText').style.display = 'flex';
             }
 
-            const modeFromServer = data?.mode || inputMode;
-            if (modeFromServer === 'upload') {
-                startBtn.disabled = !hasUploadedVideo;
-                startBtn.textContent = '重新分析';
-            } else {
-                startBtn.disabled = false;
-                startBtn.textContent = '重新啟動攝影機';
-            }
-
-            document.getElementById('placeholderText').style.display = 'flex';
-            alert(data?.msg || "分析完成！");
+            alert(data?.msg || "處理完成！");
         });
 
         socket.on('error', (data) => {
             alert("錯誤: " + data.msg);
             isProcessing = false;
-            
-            const startBtn = document.getElementById('startBtn');
+
+            const phase1Btn = document.getElementById('phase1Btn');
+            const phase2Btn = document.getElementById('phase2Btn');
             const stopBtnContainer = document.getElementById('stopBtnContainer');
             const inputControlsSection = document.getElementById('inputControlsSection');
-            
-            startBtn.disabled = (inputMode === 'upload' && !hasUploadedVideo);
-            startBtn.textContent = '開始分析';
-            
-            // 隱藏停止按鈕
-            if (stopBtnContainer) {
-                stopBtnContainer.style.display = 'none';
-            }
-            
-            // 顯示輸入控制區塊
-            if (inputControlsSection) {
-                inputControlsSection.classList.remove('hidden');
-            }
+
+            phase1Btn.disabled = (inputMode === 'upload' && !hasUploadedVideo);
+            phase2Btn.disabled = true;
+
+            if (stopBtnContainer) stopBtnContainer.style.display = 'none';
+            if (inputControlsSection) inputControlsSection.classList.remove('hidden');
         });
 
-        // 初始化預設狀態
         setInputMode('upload');
+        initStats();
     </script>
 </body>
 </html>

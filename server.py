@@ -3,7 +3,6 @@ import cv2
 import numpy as np
 import tensorflow as tf
 import base64
-import eventlet
 import time
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit
@@ -15,10 +14,25 @@ import socket
 import struct
 import threading
 
+# ======================
 # 全域 BPM（給所有地方用）
+# ======================
 current_bpm = 120.0
 
+# ======================
+# Phase1 結果快取（給 PLAY / 未來 camera 共用）
+# ======================
+cached_probs = None       # numpy array, shape (N, 7)
+cached_boxes = None       # list of face boxes per frame
+cached_fps = None         # float
+cached_video_path = None  # str
+
+# 停止旗標（Phase1 / Phase2 共用）
+stop_requested = False
+
+
 def bpm_listener():
+    """從 UDP 9001 接收 Max 傳來的 BPM（文字或 binary float）"""
     global current_bpm
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(("0.0.0.0", 9001))   # 要跟 Max 一樣的 port
@@ -26,7 +40,7 @@ def bpm_listener():
     while True:
         data, addr = sock.recvfrom(1024)
         try:
-            # 試試看純文字格式
+            # 1) 試文字 float
             try:
                 text = data.decode("utf-8").strip()
                 val = float(text)
@@ -36,7 +50,7 @@ def bpm_listener():
             except Exception:
                 pass  # 不是文字就往下
 
-            # Max binary float 格式：b'float....<4 bytes>'
+            # 2) Max binary float 格式：b'float....<4 bytes>'
             if data.startswith(b'float') and len(data) >= 4:
                 bpm_bytes = data[-4:]
                 val = struct.unpack('>f', bpm_bytes)[0]  # big-endian float
@@ -47,6 +61,7 @@ def bpm_listener():
 
         except Exception as e:
             print("[PY] BPM parse error (unexpected):", data, e)
+
 
 # 只讓 BPM listener 開一次
 bpm_thread = None
@@ -59,22 +74,20 @@ def start_bpm_listener_once():
     else:
         print("[PY] BPM listener already running.")
 
+
 # 初始化 Flask 和 SocketIO
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
-# 設定路徑
+# 路徑 / 模型 / OSC 設定
 UPLOAD_FOLDER = 'uploads'
 MODEL_PATH = 'emotion_detection_model_100epochs.h5'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# OSC 設定（用於 Max/MSP 通訊）
 OSC_IP = "127.0.0.1"
 OSC_PORT = 8000
-SEND_INTERVAL = 0.5  # 每 0.5 秒發送一次 OSC 訊息
 
-# 全域變數儲存模型
 model = None
 emotion_labels = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise']
 emotion_colors = {
@@ -86,9 +99,7 @@ emotion_colors = {
     'Sad': (255, 0, 0),
     'Surprise': (180, 105, 255)
 }
-osc = SimpleUDPClient("127.0.0.1", 8000)
 
-# 初始化 OSC 客戶端
 osc_client = None
 try:
     osc_client = SimpleUDPClient(OSC_IP, OSC_PORT)
@@ -97,7 +108,8 @@ except Exception as e:
     print(f"Warning: Could not initialize OSC client: {e}")
     print("OSC messages will not be sent to Max/MSP")
 
-# --- 這是你原本 ipynb 中的模型建構邏輯 (為了確保模型載入正確) ---
+
+# --- 模型建構 ---
 def create_model_architecture(input_shape=(48, 48, 1), num_classes=7):
     inputs = Input(shape=input_shape)
     x = Conv2D(32, kernel_size=(3, 3), activation='relu', name="conv_1")(inputs)
@@ -116,158 +128,56 @@ def create_model_architecture(input_shape=(48, 48, 1), num_classes=7):
     outputs = Dense(num_classes, activation='softmax', name="output")(x)
     return Model(inputs=inputs, outputs=outputs, name="emotion_model")
 
+
 def load_emotion_model():
     global model
     if os.path.exists(MODEL_PATH):
         try:
-            # 嘗試直接載入
             model = tf.keras.models.load_model(MODEL_PATH)
             print("Model loaded successfully via load_model.")
         except Exception as e:
             print(f"Direct load failed, trying to build architecture first: {e}")
-            # 如果直接載入失敗，先建構架構再載入權重 (根據你的 ipynb 邏輯)
             model = create_model_architecture()
             model.load_weights(MODEL_PATH)
             print("Model weights loaded successfully.")
     else:
         print(f"警告：找不到模型檔案 {MODEL_PATH}。請確保檔案存在。")
 
-# 預測函數
-def predict_emotion(face_img):
-    resized_face = cv2.resize(face_img, (48, 48)) / 255.0
-    face_input = np.expand_dims(resized_face, axis=(0, -1))
-    predictions = model.predict(face_input, verbose=0)
-    return predictions[0]
 
-# --- Flask Routes ---
+# ======================
+# 共用 Phase2 播放函式（給 PHASE2 按鈕用）
+# ======================
+def run_phase2(video_path, all_probs, face_boxes, fps, mode_label='phase2'):
+    """
+    Phase2 播放邏輯：
+    - video_path: 影片路徑
+    - all_probs: 每幀 7 維情緒機率 (N,7)
+    - face_boxes: 每幀臉框 (或 None)
+    - fps: 影片 FPS
+    - mode_label: 'phase2' / 未來 camera 也可以用別的字
+    """
+    global osc_client, current_bpm, stop_requested
 
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    
-    filename = 'uploaded_video.mp4'
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
-    file.save(filepath)
-    return jsonify({'message': 'File uploaded successfully', 'filepath': filepath})
-
-# --- SocketIO Events ---
-
-@socketio.on('start_processing')
-def handle_process_video(data):
-    global model, osc_client
-
-    # 從前端拿模式（upload / camera）
-    mode = data.get('mode', 'upload')
-    print('[PY] start_processing, mode =', mode)
-
-    if model is None:
-        load_emotion_model()
-        if model is None:
-            emit('error', {'msg': 'Model not found!'})
-            return
-
-    # 🚨 目前只實作了上傳影片的流程
-    if mode != 'upload':
-        emit('error', {'msg': f'Mode {mode} not implemented yet. 請先用上傳影片模式。'})
-        return
-
-    video_path = os.path.join(UPLOAD_FOLDER, 'uploaded_video.mp4')
-    if not os.path.exists(video_path):
-        emit('error', {'msg': 'Video file not found. Please upload first.'})
-        return
-
-    # ---------- Phase1：先跑完整部影片，收集 all_probs + face_boxes ----------
-    cap = cv2.VideoCapture(video_path)
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades +
-                                         'haarcascade_frontalface_default.xml')
-
-    print("Starting video processing (Phase1: precompute probs)...")
-
-    if not cap.isOpened():
-        emit('error', {'msg': 'Cannot open video file.'})
-        return
-
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print("FPS:", fps, "Total frames:", total_frames)
-
-    all_probs = []        # 每幀的情緒機率 (N, 7)
-    face_boxes = []       # 每幀的臉框 (x, y, w, h) 或 None
-
-    last_prob = np.ones(len(emotion_labels)) / len(emotion_labels)
-    last_box = None
-
-    SAMPLE_STEP = 5
-    frame_idx = 0
-
-    def predict_emotion_with_probabilities(face_bgr, model):
-        face_gray = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2GRAY)
-        resized_face = cv2.resize(face_gray, (48, 48)) / 255.0
-        face_img = np.expand_dims(resized_face, axis=(0, -1))
-        predictions = model.predict(face_img, verbose=0)
-        return predictions[0]
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        if frame_idx % SAMPLE_STEP == 0:
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=5)
-
-            if len(faces) > 0:
-                x, y, w, h = faces[0]
-                face = frame[y:y + h, x:x + w]
-                prob = predict_emotion_with_probabilities(face, model)
-                last_prob = prob
-                last_box = (int(x), int(y), int(w), int(h))
-            else:
-                prob = last_prob
-                last_box = None
-        else:
-            prob = last_prob
-
-        all_probs.append(prob)
-        face_boxes.append(last_box)
-
-        if frame_idx % 50 == 0:
-            print(f"Phase1: Processed frame {frame_idx}/{total_frames}")
-        frame_idx += 1
-
-    cap.release()
-
-    all_probs = np.stack(all_probs)  # shape = (N, 7)
-    N = all_probs.shape[0]
-    print("Collected probs for frames:", N)
-
-    # ---------- Phase2：重新播放影片，用 all_probs 做 NOW + 未來四拍 ----------
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         emit('error', {'msg': 'Cannot reopen video file for Phase2.'})
         return
 
-    fps = cap.get(cv2.CAP_PROP_FPS)
     N = all_probs.shape[0]
     frame_idx = 0
     last_osc_time = -1e9
 
-    print(f"[PY] Video FPS = {fps}, frames in probs = {N}")
-    print("Starting Phase2: playback with 4-beat forecast...")
+    print(f"[PY] Phase2 start, mode={mode_label}, FPS={fps}, frames={N}")
 
     try:
         while True:
+            if stop_requested:
+                print("[PY] Phase2 stop requested by client.")
+                break
+
             ret, frame = cap.read()
             if not ret or frame_idx >= N:
-                print("[PY] Video ended.")
+                print("[PY] Phase2 video ended.")
                 break
 
             current_time_sec = frame_idx / fps
@@ -302,39 +212,79 @@ def handle_process_video(data):
             # ===== 每一拍送一次 OSC =====
             if current_time_sec - last_osc_time >= beat_seconds:
                 if osc_client is not None:
-                    osc_client.send_message("/emotion_label_future",[emotion_future, prob_future, float(four_beat_seconds)])
-
+                    # 未來四拍
+                    osc_client.send_message(
+                        "/emotion_label_future",
+                        [emotion_future, prob_future, float(four_beat_seconds)]
+                    )
                     for label, p in zip(emotion_labels, probs_future):
                         osc_client.send_message("/emotion_prob_future", [label, float(p)])
 
+                    # 當前
                     osc_client.send_message("/emotion_label", [emotion_now, prob_now])
-
                     for label, p in zip(emotion_labels, probs_now):
                         osc_client.send_message("/emotion_prob", [label, float(p)])
 
                 last_osc_time = current_time_sec
 
             # ===== 畫臉框 =====
+            # ===== 畫臉框（依情緒改顏色）=====
             box = face_boxes[frame_idx] if frame_idx < len(face_boxes) else None
             if box is not None:
                 x, y, w, h = box
-                cv2.rectangle(frame, (x, y), (x+w, y+h), (0,255,0), 2)
+
+                # 使用 NOW 的情緒顏色
+                color = emotion_colors.get(emotion_now, (0, 255, 0))
+
+                cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
+
+                # 在臉框旁顯示文字
+                cv2.putText(
+                    frame,
+                    f"{emotion_now} {prob_now*100:.1f}%",
+                    (x, y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    color,
+                    2
+                )
 
             # ===== 畫文字 =====
-            cv2.putText(frame, f"NOW: {emotion_now} {prob_now*100:.1f}%",
-                        (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
-            cv2.putText(frame,
-                        f"FUT[4 beats ~ {four_beat_seconds:.2f}s]: {emotion_future} {prob_future*100:.1f}%",
-                        (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,255), 2)
+            cv2.putText(
+                frame,
+                f"NOW: {emotion_now} {prob_now*100:.1f}%",
+                (20, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 255, 255),
+                2
+            )
+            cv2.putText(
+                frame,
+                f"FUT[4 beats ~ {four_beat_seconds:.2f}s]: {emotion_future} {prob_future*100:.1f}%",
+                (20, 60),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 255),
+                2
+            )
 
+            # ===== 底部每個情緒的條狀文字 =====
             h, w, _ = frame.shape
             line_height = 20
             x_left = 20
             for i, (label, p) in enumerate(zip(emotion_labels, probs_now)):
                 text = f"{label}: {p*100:.1f}%"
                 y = h - 20 - i * line_height
-                cv2.putText(frame, text, (x_left, y),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+                cv2.putText(
+                    frame,
+                    text,
+                    (x_left, y),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (255, 255, 255),
+                    1
+                )
 
             # ===== 丟給前端 =====
             frame = cv2.resize(frame, None, fx=0.6, fy=0.6)
@@ -342,7 +292,9 @@ def handle_process_video(data):
             frame_base64 = base64.b64encode(buffer).decode('utf-8')
             socketio.emit('video_frame', {'image': frame_base64})
 
-            emotion_data = {label: float(p)*100 for label, p in zip(emotion_labels, probs_now)}
+            emotion_data = {
+                label: float(p) * 100 for label, p in zip(emotion_labels, probs_now)
+            }
             socketio.emit('emotion_update', emotion_data)
 
             socketio.sleep(1.0 / fps)
@@ -351,11 +303,369 @@ def handle_process_video(data):
     finally:
         cap.release()
 
-    emit('processing_complete', {'msg': '影片分析完成', 'mode': mode})
-    print("Video processing finished and released.")
+    if stop_requested:
+        msg = 'Phase2 播放已停止'
+    else:
+        msg = 'Phase2 播放完成'
+    emit('processing_complete', {'msg': msg, 'mode': mode_label})
+    print(f"[PY] Phase2 finished. mode={mode_label}, stop={stop_requested}")
+
+
+# ======================
+# Flask Routes
+# ======================
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    filename = 'uploaded_video.mp4'
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(filepath)
+    return jsonify({'message': 'File uploaded successfully', 'filepath': filepath})
+
+
+# ======================
+# SocketIO Events
+# ======================
+
+@socketio.on('start_phase1')
+def handle_start_phase1(data):
+    """
+    PHASE1：只做預先分析 + 快取，不播放。
+    """
+    global model, cached_probs, cached_boxes, cached_fps, cached_video_path, stop_requested
+
+    mode = data.get('mode', 'upload')
+    print('[PY] start_phase1, mode =', mode)
+
+    if mode != 'upload':
+        emit('error', {'msg': f'目前只支援上傳影片模式的 PHASE1，mode={mode}'})
+        return
+
+    if model is None:
+        load_emotion_model()
+        if model is None:
+            emit('error', {'msg': 'Model not found!'})
+            return
+
+    video_path = os.path.join(UPLOAD_FOLDER, 'uploaded_video.mp4')
+    if not os.path.exists(video_path):
+        emit('error', {'msg': 'Video file not found. Please upload first.'})
+        return
+
+    cap = cv2.VideoCapture(video_path)
+    face_cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+    )
+
+    print("Starting Phase1: precompute probs (no playback)...")
+
+    if not cap.isOpened():
+        emit('error', {'msg': 'Cannot open video file.'})
+        return
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1  # 避免除以 0
+    print("FPS:", fps, "Total frames:", total_frames)
+
+    # 一開始先丟 0%
+    socketio.emit('phase1_progress', {'progress': 0.0})
+
+
+    all_probs = []        # 每幀情緒機率 (N, 7)
+    face_boxes = []       # 每幀臉框 (x, y, w, h) 或 None
+
+    last_prob = np.ones(len(emotion_labels)) / len(emotion_labels)
+    last_box = None
+
+    SAMPLE_STEP = 5
+    frame_idx = 0
+
+    stop_requested = False  # 清掉舊的 stop
+
+    def predict_emotion_with_probabilities(face_bgr, model_local):
+        face_gray = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2GRAY)
+        resized_face = cv2.resize(face_gray, (48, 48)) / 255.0
+        face_img = np.expand_dims(resized_face, axis=(0, -1))
+        predictions = model_local.predict(face_img, verbose=0)
+        return predictions[0]
+
+    while True:
+        if stop_requested:
+            print("[PY] Phase1 stop requested by client.")
+            break
+
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        if frame_idx % SAMPLE_STEP == 0:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(
+                gray, scaleFactor=1.3, minNeighbors=5
+            )
+
+            if len(faces) > 0:
+                x, y, w, h = faces[0]
+                face = frame[y:y + h, x:x + w]
+                prob = predict_emotion_with_probabilities(face, model)
+                last_prob = prob
+                last_box = (int(x), int(y), int(w), int(h))
+            else:
+                prob = last_prob
+                last_box = None
+        else:
+            prob = last_prob
+
+        all_probs.append(prob)
+        face_boxes.append(last_box)
+
+        if frame_idx % 50 == 0:
+            print(f"Phase1: Processed frame {frame_idx}/{total_frames}")
+
+        # 更新進度條（每一幀都更新，如果覺得太頻繁可以改成每 N 幀一次）
+        progress = (frame_idx + 1) / total_frames * 100.0
+        socketio.emit('phase1_progress', {'progress': float(progress)})
+
+        frame_idx += 1
+
+        socketio.sleep(0)
+
+
+    cap.release()
+
+    if len(all_probs) == 0:
+        emit('error', {'msg': 'Phase1 沒有讀到任何 frame'})
+        return
+
+    all_probs = np.stack(all_probs)
+    N = all_probs.shape[0]
+    print("Phase1 collected probs for frames:", N)
+
+    cached_probs = all_probs
+    cached_boxes = face_boxes
+    cached_fps = fps
+    cached_video_path = video_path
+    print("[PY] Phase1 results cached.")
+
+    # 保險：Phase1 結束時設定 100%
+    socketio.emit('phase1_progress', {'progress': 100.0})
+
+    if stop_requested:
+        msg = "Phase1 已停止，暫不播放 Phase2。"
+    else:
+        msg = "Phase1 分析完成，現在可以按 PLAY（PHASE2）播放。"
+
+    emit('processing_complete', {'msg': msg, 'mode': 'phase1'})
+
+
+
+@socketio.on('start_phase2')
+def handle_start_phase2(data):
+    """
+    PHASE2：只用快取結果播放，不再跑模型。
+    """
+    global cached_probs, cached_boxes, cached_fps, cached_video_path, stop_requested
+
+    print("[PY] start_phase2 called")
+
+    if cached_probs is None or cached_video_path is None or cached_fps is None:
+        emit('error', {'msg': '目前沒有快取結果，請先按 PHASE1 進行分析。'})
+        return
+
+    stop_requested = False
+    run_phase2(
+        cached_video_path,
+        cached_probs,
+        cached_boxes,
+        cached_fps,
+        mode_label='phase2'
+    )
+
+
+@socketio.on('stop_processing')
+def handle_stop_processing():
+    """
+    前端 STOP 按鈕：把 stop_requested 設成 True，
+    Phase1 / Phase2 的迴圈都會在下一次迭代時停下。
+    """
+    global stop_requested
+    stop_requested = True
+    print("[PY] stop_processing received, stop_requested set to True")
+
+@socketio.on('start_camera')
+def handle_start_camera():
+    global camera_running, camera_thread
+
+    print("[PY] start_camera called")
+
+    if camera_running:
+        emit('error', {'msg': 'Camera 已經在運作'})
+        return
+
+    if model is None:
+        load_emotion_model()
+
+    camera_running = True
+    camera_thread = threading.Thread(target=camera_loop, daemon=True)
+    camera_thread.start()
+
+    # ⭐ 這裡「不要」 emit processing_complete
+    # Camera 結束時在 camera_loop 裡 emit 就好
+
+
+@socketio.on('stop_camera')
+def handle_stop_camera():
+    global camera_running
+    print("[PY] stop_camera received")
+    camera_running = False
+
+# ==============================
+# Camera Mode：即時偵測
+# ==============================
+camera_running = False
+camera_thread = None
+
+
+def camera_loop():
+    global camera_running, model, osc_client, current_bpm
+
+    cap = cv2.VideoCapture(0)
+
+    face_cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+    )
+
+    if not cap.isOpened():
+        print("[PY] 無法開啟攝影機")
+        socketio.emit('error', {'msg': '無法開啟攝影機'})
+        camera_running = False
+        return
+
+    print("[PY] Camera mode started.")
+    fps = 30
+    last_osc_time = time.time()
+
+    while camera_running:
+
+        # ⭐ 第 1 個安全檢查（避免卡 frame）
+        if not camera_running:
+            break
+
+        ret, frame = cap.read()
+
+        # ⭐ 第 2 個安全檢查（相機壞掉或停止）
+        if not ret:
+            break
+
+        # ⭐ 第 3 個安全檢查（保險）
+        if not camera_running:
+            break
+
+
+        # --- 找臉 ---
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+
+        emotion_now = "Neutral"
+        prob_now = 0.0
+        probs_now = np.ones(7) / 7   # default
+
+        if len(faces) > 0:
+            x, y, w, h = faces[0]
+            face = frame[y:y+h, x:x+w]
+
+            face_gray = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
+            resized = cv2.resize(face_gray, (48, 48)) / 255.0
+            face_input = np.expand_dims(resized, axis=(0, -1))
+            preds = model.predict(face_input, verbose=0)[0]
+            probs_now = preds
+
+            idx_now = int(np.argmax(preds))
+            emotion_now = emotion_labels[idx_now]
+            prob_now = float(preds[idx_now])
+
+            # 畫框框
+            color = emotion_colors.get(emotion_now, (0, 255, 0))
+            cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
+            cv2.putText(
+                frame,
+                f"{emotion_now} {prob_now*100:.1f}%",
+                (x, y-10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                color,
+                2
+            )
+
+        # ---- FUTURE = NOW ----
+        emotion_future = emotion_now
+        prob_future = prob_now
+
+        # ---- 每一拍送 OSC ----
+        beat_sec = 60.0 / max(current_bpm, 1e-3)
+        now_t = time.time()
+        if now_t - last_osc_time >= beat_sec:
+            if osc_client:
+                osc_client.send_message("/emotion_label_future",
+                                        [emotion_future, prob_future, beat_sec * 4])
+                for label, p in zip(emotion_labels, probs_now):
+                    osc_client.send_message("/emotion_prob_future",
+                                            [label, float(p)])
+
+                osc_client.send_message("/emotion_label",
+                                        [emotion_now, prob_now])
+                for label, p in zip(emotion_labels, probs_now):
+                    osc_client.send_message("/emotion_prob",
+                                            [label, float(p)])
+            last_osc_time = now_t
+
+        # ---- 畫 NOW/FUTURE 字 ----
+        cv2.putText(frame,
+                    f"NOW: {emotion_now} {prob_now*100:.1f}%",
+                    (20, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (255, 255, 255),
+                    2)
+
+        cv2.putText(frame,
+                    f"FUTURE(=NOW): {emotion_future} {prob_future*100:.1f}%",
+                    (20, 60),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 255, 255),
+                    2)
+
+        # ---- 發給前端 ----
+        frame = cv2.resize(frame, None, fx=0.6, fy=0.6)
+        _, buffer = cv2.imencode('.jpg', frame)
+        frame_b64 = base64.b64encode(buffer).decode('utf-8')
+
+        socketio.emit('video_frame', {'image': frame_b64})
+
+        emotion_dict = {
+            label: float(p)*100 for label, p in zip(emotion_labels, probs_now)
+        }
+        socketio.emit('emotion_update', emotion_dict)
+
+        socketio.sleep(1.0 / fps)
+
+    cap.release()
+    print("[PY] Camera mode stopped.")
+    socketio.emit('processing_complete', {'msg': 'Camera 模式停止', 'mode': 'camera'})
 
 if __name__ == '__main__':
-    # 第一次啟動時嘗試載入模型
     load_emotion_model()
+    start_bpm_listener_once()
     print("Server starting on http://127.0.0.1:5000")
-    socketio.run(app, debug=True, port=5000)
+    socketio.run(app, debug=False, port=5000, use_reloader=False)
