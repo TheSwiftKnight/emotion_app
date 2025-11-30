@@ -24,7 +24,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # OSC 設定（用於 Max/MSP 通訊）
 OSC_IP = "127.0.0.1"
 OSC_PORT = 8000
-SEND_INTERVAL = 0.5  # 每 0.5 秒發送一次 OSC 訊息
+SEND_INTERVAL = 0.1  # 加快發送頻率以獲得更即時的音樂反饋
 
 # 全域變數儲存模型
 model = None
@@ -40,7 +40,7 @@ except Exception as e:
     print(f"Warning: Could not initialize OSC client: {e}")
     print("OSC messages will not be sent to Max/MSP")
 
-# --- 這是你原本 ipynb 中的模型建構邏輯 (為了確保模型載入正確) ---
+# --- 模型建構邏輯 ---
 def create_model_architecture(input_shape=(48, 48, 1), num_classes=7):
     inputs = Input(shape=input_shape)
     x = Conv2D(32, kernel_size=(3, 3), activation='relu', name="conv_1")(inputs)
@@ -61,6 +61,9 @@ def create_model_architecture(input_shape=(48, 48, 1), num_classes=7):
 
 def load_emotion_model():
     global model
+    if model is not None:
+        return
+
     if os.path.exists(MODEL_PATH):
         try:
             # 嘗試直接載入
@@ -68,10 +71,13 @@ def load_emotion_model():
             print("Model loaded successfully via load_model.")
         except Exception as e:
             print(f"Direct load failed, trying to build architecture first: {e}")
-            # 如果直接載入失敗，先建構架構再載入權重 (根據你的 ipynb 邏輯)
-            model = create_model_architecture()
-            model.load_weights(MODEL_PATH)
-            print("Model weights loaded successfully.")
+            # 如果直接載入失敗，先建構架構再載入權重
+            try:
+                model = create_model_architecture()
+                model.load_weights(MODEL_PATH)
+                print("Model weights loaded successfully.")
+            except Exception as e2:
+                print(f"CRITICAL ERROR: Could not load model: {e2}")
     else:
         print(f"警告：找不到模型檔案 {MODEL_PATH}。請確保檔案存在。")
 
@@ -111,7 +117,6 @@ def _stop_session(sid, message=None):
     if message:
         socketio.emit('error', {'msg': message}, to=sid)
 
-
 def process_video_stream(sid, mode):
     """背景任務：依照 mode 進行影片或即時攝影的情緒分析。"""
     global model, osc_client
@@ -119,6 +124,7 @@ def process_video_stream(sid, mode):
     if session is None:
         return
 
+    # 確保模型已載入
     if model is None:
         load_emotion_model()
         if model is None:
@@ -140,6 +146,7 @@ def process_video_stream(sid, mode):
             return
         cap = cv2.VideoCapture(video_path)
     else:
+        # Camera mode
         cap = cv2.VideoCapture(0)
 
     if not cap or not cap.isOpened():
@@ -157,6 +164,7 @@ def process_video_stream(sid, mode):
     max_idx = 0
 
     while True:
+        # Check stop signal
         if session.get('stop'):
             print(f"Session {sid} requested stop.")
             break
@@ -164,15 +172,27 @@ def process_video_stream(sid, mode):
         ret, frame = cap.read()
         if not ret:
             if mode == 'camera':
+                # Camera might have temporary glitch
                 socketio.sleep(0.05)
                 continue
+            # Video ended
             print(f"{source_desc} processing completed for session {sid}.")
             break
+        
+        # 降低傳輸解析度以優化效能，但保留足夠細節給粒子系統
+        # 前端 Three.js 粒子系統不需要太高解析度
+        h, w = frame.shape[:2]
+        target_w = 480
+        if w > target_w:
+            scale = target_w / w
+            frame = cv2.resize(frame, (int(w * scale), int(h * scale)))
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=5)
 
         current_emotions = {}
+        
+        # 情緒偵測與標記
         for (x, y, w, h) in faces:
             face = gray[y:y + h, x:x + w]
             try:
@@ -186,30 +206,41 @@ def process_video_stream(sid, mode):
                     emotion_data[label] = float(probabilities[i]) * 100
                 current_emotions = emotion_data
 
-                label_text = f"{emotion_labels[max_idx]}: {probabilities[max_idx]*100:.1f}%"
-                cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-                cv2.putText(frame, label_text, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-                break  # 一次只處理第一張臉，維持與舊邏輯一致
+                # 畫框與文字
+                color = (0, 255, 0)
+                if last_emotion == 'Angry': color = (0, 0, 255)
+                elif last_emotion == 'Happy': color = (0, 255, 255)
+                
+                cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
+                # 不要在畫面上蓋太多字，保留給 3D 效果展示
+                # cv2.putText(frame, last_emotion, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+                break 
             except Exception as e:
                 print(f"Prediction error: {e}")
 
-        _, buffer = cv2.imencode('.jpg', frame)
+        # 傳送影像幀 (JPEG -> Base64)
+        _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
         frame_base64 = base64.b64encode(buffer).decode('utf-8')
         socketio.emit('video_frame', {'image': frame_base64}, to=sid)
 
+        # 傳送情緒數據
         if current_emotions:
             socketio.emit('emotion_update', current_emotions, to=sid)
 
+        # 傳送 OSC 到 Max/MSP
         if osc_client is not None:
             now = time.time()
             if now - last_send_time >= SEND_INTERVAL:
                 try:
+                    # 傳送所有情緒機率
                     for label, prob in zip(emotion_labels, last_probabilities):
                         osc_client.send_message("/emotion_prob", [label, float(prob)])
-
+                    
+                    # 傳送主要情緒
                     top_prob = float(last_probabilities[max_idx])
                     osc_client.send_message("/emotion_label", [last_emotion, top_prob])
-
+                    
+                    # 為了相容舊版邏輯
                     for label, prob in zip(emotion_labels, last_probabilities):
                         osc_client.send_message("/emotion", [label, float(prob)])
 
@@ -217,7 +248,7 @@ def process_video_stream(sid, mode):
                 except Exception as e:
                     print(f"OSC send error: {e}")
 
-        socketio.sleep(0.03)
+        socketio.sleep(0.033) # 約 30 FPS
 
     cap.release()
     processing_sessions.pop(sid, None)
@@ -259,7 +290,6 @@ def handle_disconnect():
         session['stop'] = True
 
 if __name__ == '__main__':
-    # 第一次啟動時嘗試載入模型
     load_emotion_model()
     print("Server starting on http://127.0.0.1:5000")
     socketio.run(app, debug=True, port=5000)
