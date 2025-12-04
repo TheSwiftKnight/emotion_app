@@ -14,6 +14,16 @@ import socket
 import struct
 import threading
 
+import mediapipe as mp
+import math
+
+# --- 手勢追蹤全域變數 ---
+hand_tracking_active = False
+hand_control_enabled = True
+hand_thread = None
+# 用來傳給前端做畫面互動
+current_interaction = {'scale': 1.0, 'pan_x': 0.0, 'pan_y': 0.0}
+
 # ======================
 # 全域 BPM（給所有地方用）
 # ======================
@@ -82,7 +92,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # 路徑 / 模型 / OSC 設定
 UPLOAD_FOLDER = 'uploads'
-MODEL_PATH = 'emotion_detection_model_100epochs.h5'
+MODEL_PATH = 'share/emotion_detection_model_100epochs.h5'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 OSC_IP = "127.0.0.1"
@@ -157,6 +167,13 @@ def run_phase2(video_path, all_probs, face_boxes, fps, mode_label='phase2'):
     - mode_label: 'phase2' / 未來 camera 也可以用別的字
     """
     global osc_client, current_bpm, stop_requested
+
+    # --- 新增：啟動手勢追蹤 ---
+    global hand_tracking_active, hand_thread
+    if not hand_tracking_active:
+        hand_tracking_active = True
+        hand_thread = threading.Thread(target=hand_tracking_loop, daemon=True)
+        hand_thread.start()
 
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -302,6 +319,10 @@ def run_phase2(video_path, all_probs, face_boxes, fps, mode_label='phase2'):
 
     finally:
         cap.release()
+        # --- 關閉手勢追蹤 ---
+        hand_tracking_active = False 
+        if hand_thread and hand_thread.is_alive():
+            hand_thread.join(timeout=1.0)
 
     if stop_requested:
         msg = 'Phase2 播放已停止'
@@ -529,6 +550,15 @@ def handle_stop_camera():
     print("[PY] stop_camera received")
     camera_running = False
 
+
+@socketio.on('toggle_hand_control')
+def handle_toggle_hand_control(data):
+    global hand_control_enabled
+    # data['enabled'] 應該是 true/false
+    hand_control_enabled = data.get('enabled', True)
+    state_str = "ON" if hand_control_enabled else "OFF"
+    print(f"[PY] Hand Control toggled: {state_str}")
+
 # ==============================
 # Camera Mode：即時偵測
 # ==============================
@@ -664,8 +694,71 @@ def camera_loop():
     print("[PY] Camera mode stopped.")
     socketio.emit('processing_complete', {'msg': 'Camera 模式停止', 'mode': 'camera'})
 
+def hand_tracking_loop():
+    global hand_tracking_active, hand_control_enabled, osc_client
+
+    mp_hands = mp.solutions.hands
+    with mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.5) as hands:
+        cap = cv2.VideoCapture(0)
+        print("[PY] Hand Tracking & PIP Camera Started")
+        
+        while hand_tracking_active:
+            ret, frame = cap.read()
+            if not ret:
+                time.sleep(0.1)
+                continue
+
+            # --- A. 處理 PIP 畫面回傳 (不管有沒有開控制，都要看畫面) ---
+            # 為了效能，PIP 畫面可以縮小一點
+            pip_frame = cv2.resize(frame, (320, 240)) 
+            _, buffer = cv2.imencode('.jpg', pip_frame)
+            pip_base64 = base64.b64encode(buffer).decode('utf-8')
+            # 發送給前端的 'camera_frame' 事件
+            socketio.emit('camera_frame', {'image': pip_base64})
+
+            # --- B. 手勢辨識與控制 (只有 enabled 時才做) ---
+            if hand_control_enabled:
+                image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results = hands.process(image_rgb)
+
+                zoom_factor = 1.0
+                pan_val = 0.5
+
+                if results.multi_hand_landmarks:
+                    for hand_landmarks in results.multi_hand_landmarks:
+                        # 邏輯與之前相同：計算 Pan
+                        wrist_x = hand_landmarks.landmark[0].x 
+                        pan_val = 1.0 - wrist_x
+                        pan_val = max(0.0, min(1.0, pan_val))
+
+                        # 計算 Zoom
+                        thumb_tip = hand_landmarks.landmark[4]
+                        index_tip = hand_landmarks.landmark[8]
+                        dist = math.sqrt((thumb_tip.x - index_tip.x)**2 + (thumb_tip.y - index_tip.y)**2)
+                        zoom_factor = 1.0 + (dist * 4.0)
+                        break 
+
+                    # 發送 OSC 給 Max
+                    if osc_client:
+                        osc_client.send_message("/pan", float(pan_val))
+                        osc_client.send_message("/zoom", float(zoom_factor))
+
+                    # 發送 Socket 給前端改變 CSS
+                    rotation_y = (pan_val - 0.5) * 60 
+                    socketio.emit('interaction_update', {
+                        'scale': float(zoom_factor),
+                        'rotate': float(rotation_y)
+                    })
+            
+            # 控制 FPS (約 30fps)
+            time.sleep(0.033)
+
+        cap.release()
+        print("[PY] Hand Tracking Stopped")
+
 if __name__ == '__main__':
     load_emotion_model()
     start_bpm_listener_once()
     print("Server starting on http://127.0.0.1:5000")
     socketio.run(app, debug=False, port=5000, use_reloader=False)
+

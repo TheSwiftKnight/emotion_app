@@ -142,6 +142,36 @@
             border-right: 1px solid #fff !important;
             background: rgba(34, 34, 34, 0.75) !important;
         }
+        
+        .pip-window {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 240px;
+        height: 180px;
+        background-color: #000;
+        border: 2px solid rgba(255, 255, 255, 0.5);
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        z-index: 50; /* 確保在最上層 */
+        overflow: hidden;
+        transition: opacity 0.3s;
+    }
+
+    .pip-window img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scaleX(-1); /* 鏡像翻轉，讓操作比較直覺 */
+    }
+
+    .hand-toggle-btn {
+        background-color: #f59e0b; /* 橘色 */
+        color: white;
+    }
+    .hand-toggle-btn.off {
+        background-color: #4b5563; /* 灰色 */
+    }
     </style>
 </head>
 <body class="dynamic-bg text-white min-h-screen overflow-hidden relative" id="dynamicBody" style="background: rgb(17, 24, 39);">
@@ -261,6 +291,19 @@
             </p>
             <img id="processedFrame" class="w-full h-full object-contain hidden" />
         </div>
+    </div>
+
+
+    <div id="pipContainer" class="pip-window hidden">
+        <img id="pipImage" />
+    </div>
+
+    <div class="mt-4 border-t border-gray-600 pt-4">
+        <h3 class="text-xs text-gray-300 mb-2">互動控制</h3>
+        <button id="btnHandToggle" onclick="toggleHandControl()" 
+                class="hand-toggle-btn font-bold py-2 px-4 text-sm rounded transition w-full">
+            手勢控制：開啟
+        </button>
     </div>
 
     <script>
@@ -677,6 +720,28 @@
             }, 800);
         }
 
+        function toggleHandControl() {
+            isHandControlOn = !isHandControlOn;
+            
+            const btn = document.getElementById('btnHandToggle');
+            if (isHandControlOn) {
+                btn.textContent = "手勢控制：開啟";
+                btn.classList.remove('off');
+            } else {
+                btn.textContent = "手勢控制：關閉";
+                btn.classList.add('off');
+                
+                // 關閉時，把主畫面復原回正中央
+                const videoContainer = document.getElementById('videoContainer');
+                if(videoContainer) {
+                    videoContainer.style.transform = "perspective(1000px) scale(1) rotateY(0deg)";
+                }
+            }
+            
+            // 通知 Server
+            socket.emit('toggle_hand_control', { enabled: isHandControlOn });
+        }
+
         socket.on("video_frame", (data) => {
             if (inputMode !== "camera" && inputMode !== "upload") return;
             if (!isProcessing) return;
@@ -716,6 +781,7 @@
         });
 
         socket.on('processing_complete', (data) => {
+            
             isProcessing = false;
             const phase1Btn = document.getElementById('phase1Btn');
             const phase2Btn = document.getElementById('phase2Btn');
@@ -743,6 +809,12 @@
                 document.getElementById('placeholderText').style.display = 'flex';
             }
 
+            // 隱藏 PIP（當 Phase 2 結束時）
+            const pipContainer = document.getElementById('pipContainer');
+            if (pipContainer) {
+                pipContainer.classList.add('hidden');
+            }
+
             alert(data?.msg || "處理完成！");
         });
 
@@ -764,6 +836,30 @@
 
         setInputMode('upload');
         initStats();
+
+        // 接收手勢互動數據
+        socket.on('interaction_update', (data) => {
+            const videoContainer = document.getElementById('videoContainer');
+            if (videoContainer) {
+                // 使用 CSS Transform 來做 放大(Zoom) 和 旋轉(Angle)
+                // scale: 控制遠近
+                // rotateY: 控制左右偏斜 (3D效果)
+                videoContainer.style.transform = 
+                    `perspective(1000px) scale(${data.scale}) rotateY(${data.rotate}deg)`;
+            }
+        });
+
+        socket.on('camera_frame', (data) => {
+            const pipContainer = document.getElementById('pipContainer');
+            const pipImage = document.getElementById('pipImage');
+            
+            // 如果收到畫面，就顯示 PIP 視窗
+            if(pipContainer.classList.contains('hidden')) {
+                pipContainer.classList.remove('hidden');
+            }
+            
+            pipImage.src = "data:image/jpeg;base64," + data.image;
+        });
     </script>
 </body>
 </html>
