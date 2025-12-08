@@ -1,14 +1,15 @@
 # Flask and WebSocket dependencies
 flask==2.3.3
 flask-socketio==5.3.6
-eventlet==0.36.1
+eventlet==0.40.2
 
 # Computer Vision
-opencv-python-headless>=4.8.0
+opencv-python-headless==4.12.0.88
+mediapipe==0.10.21
 
 # Machine Learning
-tensorflow>=2.10.0
-numpy>=1.21.0
+tensorflow==2.20.0
+numpy==1.26.4
 
 # OSC (Open Sound Control) for Max/MSP communication
-python-osc>=1.8.0
+python-osc==1.8.3

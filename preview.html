@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 情緒分析系統 - 預覽</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 一定要有這個，才連得到 Flask-SocketIO -->
+    <script src="/socket.io/socket.io.js"></script>
     <style>
         .progress-bar { transition: width 0.3s ease; }
         .main-video {
@@ -65,7 +67,7 @@
             transition: background 2s ease;
         }
 
-        /* 演示動態背景 */
+        /* 演示動態背景（暫時保留） */
         body {
             animation: colorShift 10s infinite;
         }
@@ -83,7 +85,7 @@
 
     <!-- 標題 -->
     <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-20">
-        <h1 class="text-3xl font-bold text-center text-blue-400">AI 影片情緒即時分析 (預覽)</h1>
+        <h1 class="text-3xl font-bold text-center text-blue-400">AI 影片情緒分析</h1>
     </div>
 
     <!-- 左側控制面板 -->
@@ -95,23 +97,37 @@
         <div class="panel-content">
             <h2 class="text-lg font-semibold mb-3 text-blue-300">控制面板</h2>
             
+            <!-- 選擇影片 -->
             <div class="mb-4">
-                <input type="file" id="videoInput" accept="video/mp4" class="block w-full text-xs text-gray-400
+                <input type="file" id="videoInput" accept="video/mp4,video/*" class="block w-full text-xs text-gray-400
                     file:mr-2 file:py-1 file:px-3
                     file:rounded-full file:border-0
                     file:text-xs file:font-semibold
                     file:bg-blue-600 file:text-white
                     hover:file:bg-blue-700
                 "/>
+                <p class="text-[10px] text-gray-400 mt-1">
+                    選好影片後，請按下「上傳並預先分析」開始 Phase1。
+                </p>
             </div>
 
             <div class="flex flex-col gap-2">
-                <button onclick="alert('演示模式')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition text-sm">
-                    上傳影片 (演示)
+                <!-- 上傳 + 啟動 Phase1 -->
+                <button id="uploadBtn"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition text-sm">
+                    上傳並預先分析
                 </button>
-                <button onclick="startDemo()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition text-sm">
-                    開始演示
+
+                <!-- Phase2：只跑播放＋送 MAX，預設 disabled -->
+                <button id="startBtn"
+                    class="bg-green-600 text-white font-bold py-2 px-4 rounded transition text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                    disabled>
+                    等待預先分析完成...
                 </button>
+            </div>
+
+            <div id="statusText" class="mt-3 text-xs text-gray-300">
+                ⏳ 尚未上傳影片
             </div>
         </div>
         
@@ -123,11 +139,13 @@
 
     <!-- 中央主影片區域 -->
     <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-5">
-        <div class="main-video bg-black rounded-xl overflow-hidden border-4 border-gray-600 shadow-2xl relative">
-            <p id="placeholderText" class="absolute inset-0 flex items-center justify-center text-gray-500 text-xl">
-                🎬 更大的影片顯示區域<br>
-                點擊左側箭頭可收縮控制面板<br>
-                背景會根據情緒動態變色
+        <div class="main-video bg-black rounded-xl overflow-hidden border-4 border-gray-600 shadow-2xl relative flex items-center justify-center">
+            <!-- 接收 video_frame 的 img -->
+            <img id="videoFrame" class="w-full h-full object-contain hidden" alt="情緒影片畫面">
+            <p id="placeholderText" class="absolute inset-0 flex items-center justify-center text-gray-500 text-xl text-center px-4">
+                🎬 請先在左側選擇影片並「上傳並預先分析」<br>
+                Phase1 完成後，才能按下「開始分析」播放結果。<br>
+                點擊左側箭頭可收縮控制面板。
             </p>
         </div>
     </div>
@@ -135,52 +153,104 @@
     <!-- 右下角即時數據面板 -->
     <div class="fixed bottom-4 right-4 w-72 h-80 stats-panel p-3 rounded-xl shadow-2xl z-10 overflow-y-auto">
         <h2 class="text-base font-semibold mb-3 text-green-300">即時情緒比例</h2>
-        <div id="stats-container" class="space-y-2">
-            <!-- 演示情緒條 -->
-            <div class="mb-2">
+        <div id="stats-container" class="space-y-2 text-xs">
+            <!-- 每個情緒一組：Angry, Disgust, Fear, Happy, Neutral, Sad, Surprise -->
+            <!-- Angry -->
+            <div class="mb-2" data-emotion="Angry">
                 <div class="flex justify-between mb-1">
-                    <span class="text-xs font-medium text-gray-200">Happy</span>
-                    <span class="text-xs font-medium text-gray-200">45.2%</span>
+                    <span class="font-medium text-gray-200">Angry</span>
+                    <span class="font-medium text-gray-200 value-text">0.0%</span>
                 </div>
                 <div class="w-full bg-gray-700 rounded-full h-2">
-                    <div class="bg-yellow-400 h-2 rounded-full progress-bar" style="width: 45%"></div>
+                    <div class="bg-red-500 h-2 rounded-full progress-bar value-bar" style="width: 0%"></div>
                 </div>
             </div>
-            <div class="mb-2">
+            <!-- Disgust -->
+            <div class="mb-2" data-emotion="Disgust">
                 <div class="flex justify-between mb-1">
-                    <span class="text-xs font-medium text-gray-200">Neutral</span>
-                    <span class="text-xs font-medium text-gray-200">23.8%</span>
+                    <span class="font-medium text-gray-200">Disgust</span>
+                    <span class="font-medium text-gray-200 value-text">0.0%</span>
                 </div>
                 <div class="w-full bg-gray-700 rounded-full h-2">
-                    <div class="bg-gray-400 h-2 rounded-full progress-bar" style="width: 23%"></div>
+                    <div class="bg-lime-400 h-2 rounded-full progress-bar value-bar" style="width: 0%"></div>
                 </div>
             </div>
-            <div class="mb-2">
+            <!-- Fear -->
+            <div class="mb-2" data-emotion="Fear">
                 <div class="flex justify-between mb-1">
-                    <span class="text-xs font-medium text-gray-200">Surprise</span>
-                    <span class="text-xs font-medium text-gray-200">18.5%</span>
+                    <span class="font-medium text-gray-200">Fear</span>
+                    <span class="font-medium text-gray-200 value-text">0.0%</span>
                 </div>
                 <div class="w-full bg-gray-700 rounded-full h-2">
-                    <div class="bg-purple-400 h-2 rounded-full progress-bar" style="width: 18%"></div>
+                    <div class="bg-purple-500 h-2 rounded-full progress-bar value-bar" style="width: 0%"></div>
                 </div>
             </div>
-            <div class="mb-2">
+            <!-- Happy -->
+            <div class="mb-2" data-emotion="Happy">
                 <div class="flex justify-between mb-1">
-                    <span class="text-xs font-medium text-gray-200">Sad</span>
-                    <span class="text-xs font-medium text-gray-200">8.1%</span>
+                    <span class="font-medium text-gray-200">Happy</span>
+                    <span class="font-medium text-gray-200 value-text">0.0%</span>
                 </div>
                 <div class="w-full bg-gray-700 rounded-full h-2">
-                    <div class="bg-blue-400 h-2 rounded-full progress-bar" style="width: 8%"></div>
+                    <div class="bg-yellow-400 h-2 rounded-full progress-bar value-bar" style="width: 0%"></div>
                 </div>
             </div>
-            <div class="text-center text-xs text-gray-400 mt-4">
-                📊 背景會根據這些比例<br>自動調整顏色
+            <!-- Neutral -->
+            <div class="mb-2" data-emotion="Neutral">
+                <div class="flex justify-between mb-1">
+                    <span class="font-medium text-gray-200">Neutral</span>
+                    <span class="font-medium text-gray-200 value-text">0.0%</span>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-2">
+                    <div class="bg-gray-400 h-2 rounded-full progress-bar value-bar" style="width: 0%"></div>
+                </div>
+            </div>
+            <!-- Sad -->
+            <div class="mb-2" data-emotion="Sad">
+                <div class="flex justify-between mb-1">
+                    <span class="font-medium text-gray-200">Sad</span>
+                    <span class="font-medium text-gray-200 value-text">0.0%</span>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-2">
+                    <div class="bg-blue-400 h-2 rounded-full progress-bar value-bar" style="width: 0%"></div>
+                </div>
+            </div>
+            <!-- Surprise -->
+            <div class="mb-2" data-emotion="Surprise">
+                <div class="flex justify-between mb-1">
+                    <span class="font-medium text-gray-200">Surprise</span>
+                    <span class="font-medium text-gray-200 value-text">0.0%</span>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-2">
+                    <div class="bg-pink-400 h-2 rounded-full progress-bar value-bar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="text-center text-[11px] text-gray-400 mt-4">
+                📊 這裡顯示的是伺服器 Phase2 播放時<br>即時送來的情緒比例
             </div>
         </div>
     </div>
 
     <script>
         let isPanelCollapsed = false;
+        const socket = io();
+
+        const videoInput = document.getElementById('videoInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const startBtn = document.getElementById('startBtn');
+        const statusText = document.getElementById('statusText');
+        const videoImg = document.getElementById('videoFrame');
+        const placeholderText = document.getElementById('placeholderText');
+
+        // emotion panel 快速查表
+        const emotionPanels = {};
+        document.querySelectorAll('#stats-container [data-emotion]').forEach(div => {
+            const key = div.getAttribute('data-emotion');
+            const bar = div.querySelector('.value-bar');
+            const text = div.querySelector('.value-text');
+            emotionPanels[key] = { bar, text };
+        });
 
         // 控制面板收縮/展開功能
         function togglePanel() {
@@ -207,9 +277,111 @@
             }
         }
 
-        function startDemo() {
-            alert('🎉 演示功能：\n\n✅ 控制面板可收縮（點左側箭頭）\n✅ 影片區域更大且可擴展\n✅ 背景會根據情緒比例動態變色\n✅ 右下角緊湊的情緒監測面板\n\n實際使用時需要啟動Python服務器！');
-        }
+        // 上傳 + 啟動 Phase1
+        uploadBtn.addEventListener('click', async () => {
+            const file = videoInput.files[0];
+            if (!file) {
+                alert('請先選擇一個影片檔案。');
+                return;
+            }
+
+            // disable 開始分析按鈕，避免 Phase1 還沒完成就按
+            startBtn.disabled = true;
+            startBtn.textContent = '預先分析中...';
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '上傳中...';
+            statusText.textContent = '⏳ 影片已上傳，正在進行預先分析 (Phase1)...';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const res = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await res.json();
+                console.log('upload result', data);
+
+                if (data.error) {
+                    alert('上傳失敗：' + data.error);
+                    statusText.textContent = '❌ 上傳失敗，請重新嘗試';
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = '上傳並預先分析';
+                    return;
+                }
+
+                statusText.textContent = '⏳ 上傳完成，正在背景預先分析 (Phase1)...';
+
+            } catch (err) {
+                console.error(err);
+                alert('上傳時發生錯誤，請查看 console。');
+                statusText.textContent = '❌ 上傳過程發生錯誤';
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = '上傳並預先分析';
+            }
+        });
+
+        // Phase1 完成 → 開啟「開始分析」
+        socket.on('phase1_complete', (data) => {
+            console.log('Phase1 complete:', data);
+            startBtn.disabled = false;
+            startBtn.textContent = '開始分析';
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = '重新上傳並預先分析';
+            statusText.textContent = '✅ 預先分析完成，可以按「開始分析」播放 Phase2。';
+        });
+
+        // 開始 Phase2 播放 + 分析
+        startBtn.addEventListener('click', () => {
+            if (startBtn.disabled) return;
+
+            startBtn.disabled = true;
+            startBtn.textContent = '分析中...';
+            statusText.textContent = '🎬 Phase2 播放中，畫面與情緒資料即時更新...';
+
+            socket.emit('start_processing', {});  // data 可有可無
+        });
+
+        // 從伺服器收到每一幀影像
+        socket.on('video_frame', (data) => {
+            const { image } = data;
+            if (image) {
+                videoImg.src = 'data:image/jpeg;base64,' + image;
+                videoImg.classList.remove('hidden');
+                placeholderText.style.display = 'none';
+            }
+        });
+
+        // 從伺服器收到即時情緒比例（NOW）
+        socket.on('emotion_update', (data) => {
+            // data = { Angry: %, Disgust: %, ... } (% 已乘 100)
+            for (const [label, value] of Object.entries(data)) {
+                if (!emotionPanels[label]) continue;
+                const v = Math.max(0, Math.min(100, value)); // clamp 0~100
+                emotionPanels[label].bar.style.width = v.toFixed(1) + '%';
+                emotionPanels[label].text.textContent = v.toFixed(1) + '%';
+            }
+        });
+
+        // Phase2 播放完成
+        socket.on('processing_complete', (data) => {
+            console.log('Phase2 complete:', data);
+            statusText.textContent = '🏁 ' + (data.msg || '影片分析完成 (Phase2)。');
+            // 你可以選擇讓使用者重新看一次
+            startBtn.disabled = false;
+            startBtn.textContent = '再看一次分析';
+        });
+
+        // 後端 error
+        socket.on('error', (data) => {
+            console.warn('Server error:', data);
+            alert(data.msg || '伺服器錯誤');
+            statusText.textContent = '❌ ' + (data.msg || '伺服器錯誤');
+            startBtn.disabled = true;
+            startBtn.textContent = '等待預先分析完成...';
+        });
     </script>
 
 </body>
