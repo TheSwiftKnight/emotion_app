@@ -567,133 +567,191 @@ camera_thread = None
 
 
 def camera_loop():
-    global camera_running, model, osc_client, current_bpm
+    global camera_running, model, osc_client, current_bpm, hand_control_enabled
 
+    # 1. 初始化攝影機
     cap = cv2.VideoCapture(0)
-
+    
+    # 2. 初始化 Face Cascade (情緒用)
     face_cascade = cv2.CascadeClassifier(
         cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
     )
 
-    if not cap.isOpened():
-        print("[PY] 無法開啟攝影機")
-        socketio.emit('error', {'msg': '無法開啟攝影機'})
-        camera_running = False
-        return
+    # 3. 初始化 MediaPipe Hands (手勢用)
+    mp_hands = mp.solutions.hands
+    
+    # 使用 with 語法確保資源正確釋放
+    with mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.5) as hands:
 
-    print("[PY] Camera mode started.")
-    fps = 30
-    last_osc_time = time.time()
+        if not cap.isOpened():
+            print("[PY] 無法開啟攝影機")
+            socketio.emit('error', {'msg': '無法開啟攝影機'})
+            camera_running = False
+            return
 
-    while camera_running:
+        print("[PY] Camera mode started (Emotion + Hand Tracking integrated).")
+        fps = 30
+        last_osc_time = time.time()
 
-        # ⭐ 第 1 個安全檢查（避免卡 frame）
-        if not camera_running:
-            break
+        while camera_running:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # 翻轉畫面，讓操作比較直覺 (像鏡子)
+            frame = cv2.flip(frame, 1)
 
-        ret, frame = cap.read()
+            # -------------------------------------------------
+            # A. 手勢控制邏輯 (檢查開關 hand_control_enabled)
+            # -------------------------------------------------
+            if hand_control_enabled:
+                # MediaPipe 需要 RGB
+                img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                results = hands.process(img_rgb)
 
-        # ⭐ 第 2 個安全檢查（相機壞掉或停止）
-        if not ret:
-            break
+                if results.multi_hand_landmarks:
+                    for hand_landmarks in results.multi_hand_landmarks:
+                        # 1. 計算 Pan (左右位置)
+                        # 因為已經 flip 過，x 座標 0=左, 1=右，剛好符合
+                        wrist_x = hand_landmarks.landmark[0].x 
+                        pan_val = max(0.0, min(1.0, wrist_x))
 
-        # ⭐ 第 3 個安全檢查（保險）
-        if not camera_running:
-            break
+                        # 2. 計算 Zoom (拇指與食指距離)
+                        thumb_tip = hand_landmarks.landmark[4]
+                        index_tip = hand_landmarks.landmark[8]
+                        # 簡單的歐幾里得距離
+                        dist = math.sqrt((thumb_tip.x - index_tip.x)**2 + (thumb_tip.y - index_tip.y)**2)
+                        
+                        # 映射距離到 Zoom 係數 (0.05~0.3 對應到 1.0~2.5)
+                        # 你可以根據實際手感微調這裡的係數
+                        zoom_factor = 1.0 + (dist * 5.0)
 
+                        # --- 送出訊號 ---
+                        
+                        # 1. 送 OSC 給 Max (聲音)
+                        if osc_client:
+                            osc_client.send_message("/pan", float(pan_val))
+                            osc_client.send_message("/zoom", float(zoom_factor))
 
-        # --- 找臉 ---
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+                        # 2. 送 Socket 給前端 (畫面變形)
+                        # 算出旋轉角度 (-30 ~ 30 度)
+                        rotation_y = (pan_val - 0.5) * 60 
+                        socketio.emit('interaction_update', {
+                            'scale': float(zoom_factor),
+                            'rotate': float(rotation_y)
+                        })
+                        
+                        # 只抓第一隻手，避免訊號混亂
+                        break 
+                        
+                # 畫出手勢骨架 (Optional: 偵錯用，想看骨架可以取消註解)
+                # mp.solutions.drawing_utils.draw_landmarks(frame, results.multi_hand_landmarks[0], mp_hands.HAND_CONNECTIONS)
 
-        emotion_now = "Neutral"
-        prob_now = 0.0
-        probs_now = np.ones(7) / 7   # default
+            # -------------------------------------------------
+            # B. 情緒辨識邏輯 (原本的 Code)
+            # -------------------------------------------------
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 
-        if len(faces) > 0:
-            x, y, w, h = faces[0]
-            face = frame[y:y+h, x:x+w]
+            emotion_now = "Neutral"
+            prob_now = 0.0
+            probs_now = np.ones(7) / 7 
 
-            face_gray = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
-            resized = cv2.resize(face_gray, (48, 48)) / 255.0
-            face_input = np.expand_dims(resized, axis=(0, -1))
-            preds = model.predict(face_input, verbose=0)[0]
-            probs_now = preds
+            if len(faces) > 0:
+                # 抓最大的臉
+                faces = sorted(faces, key=lambda f: f[2]*f[3], reverse=True)
+                x, y, w, h = faces[0]
+                
+                # 畫臉框
+                color = emotion_colors.get(emotion_now, (0, 255, 0))
+                cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
 
-            idx_now = int(np.argmax(preds))
-            emotion_now = emotion_labels[idx_now]
-            prob_now = float(preds[idx_now])
+                try:
+                    face_roi = gray[y:y+h, x:x+w]
+                    resized = cv2.resize(face_roi, (48, 48)) / 255.0
+                    face_input = np.expand_dims(resized, axis=(0, -1))
+                    face_input = np.expand_dims(face_input, axis=0) # Shape: (1, 48, 48, 1)
+                    
+                    preds = model.predict(face_input, verbose=0)[0]
+                    probs_now = preds
+                    idx_now = int(np.argmax(preds))
+                    emotion_now = emotion_labels[idx_now]
+                    prob_now = float(preds[idx_now])
 
-            # 畫框框
-            color = emotion_colors.get(emotion_now, (0, 255, 0))
-            cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
-            cv2.putText(
-                frame,
-                f"{emotion_now} {prob_now*100:.1f}%",
-                (x, y-10),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                color,
-                2
-            )
+                    # 更新框框顏色與文字
+                    color = emotion_colors.get(emotion_now, (0, 255, 0))
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
+                    cv2.putText(frame, f"{emotion_now} {prob_now*100:.0f}%", (x, y-10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                except Exception as e:
+                    print(f"Emotion predict error: {e}")
 
-        # ---- FUTURE = NOW ----
-        emotion_future = emotion_now
-        prob_future = prob_now
+            # -------------------------------------------------
+            # C. 發送 OSC 情緒數據 (每拍一次)
+            # -------------------------------------------------
+            beat_sec = 60.0 / max(current_bpm, 1e-3)
+            now_t = time.time()
+            if now_t - last_osc_time >= beat_sec:
+                if osc_client:
+                    # Camera 模式下，Future = Now
+                    osc_client.send_message("/emotion_label_future", [emotion_now, prob_now, beat_sec * 4])
+                    for label, p in zip(emotion_labels, probs_now):
+                        osc_client.send_message("/emotion_prob_future", [label, float(p)])
 
-        # ---- 每一拍送 OSC ----
-        beat_sec = 60.0 / max(current_bpm, 1e-3)
-        now_t = time.time()
-        if now_t - last_osc_time >= beat_sec:
-            if osc_client:
-                osc_client.send_message("/emotion_label_future",
-                                        [emotion_future, prob_future, beat_sec * 4])
-                for label, p in zip(emotion_labels, probs_now):
-                    osc_client.send_message("/emotion_prob_future",
-                                            [label, float(p)])
+                    osc_client.send_message("/emotion_label", [emotion_now, prob_now])
+                    for label, p in zip(emotion_labels, probs_now):
+                        osc_client.send_message("/emotion_prob", [label, float(p)])
+                
+                last_osc_time = now_t
 
-                osc_client.send_message("/emotion_label",
-                                        [emotion_now, prob_now])
-                for label, p in zip(emotion_labels, probs_now):
-                    osc_client.send_message("/emotion_prob",
-                                            [label, float(p)])
-            last_osc_time = now_t
+            # -------------------------------------------------
+            # D. 繪製介面資訊
+            # -------------------------------------------------
+            cv2.putText(frame,
+                        f"NOW: {emotion_now} {prob_now*100:.1f}%",
+                        (20, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7,
+                        (255, 255, 255),
+                        2)
 
-        # ---- 畫 NOW/FUTURE 字 ----
-        cv2.putText(frame,
-                    f"NOW: {emotion_now} {prob_now*100:.1f}%",
-                    (20, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (255, 255, 255),
-                    2)
+            cv2.putText(frame,
+                        f"FUTURE(=NOW): {emotion_now} {prob_now*100:.1f}%",
+                        (20, 60),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7,
+                        (0, 255, 255),
+                        2)
 
-        cv2.putText(frame,
-                    f"FUTURE(=NOW): {emotion_future} {prob_future*100:.1f}%",
-                    (20, 60),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (0, 255, 255),
-                    2)
+            # -------------------------------------------------
+            # E. 發送影像與情緒數據給前端
+            # -------------------------------------------------
+            # 為了傳輸順暢縮小一點
+            frame_resized = cv2.resize(frame, None, fx=0.6, fy=0.6)
+            _, buffer = cv2.imencode('.jpg', frame_resized)
+            frame_b64 = base64.b64encode(buffer).decode('utf-8')
 
-        # ---- 發給前端 ----
-        frame = cv2.resize(frame, None, fx=0.6, fy=0.6)
-        _, buffer = cv2.imencode('.jpg', frame)
-        frame_b64 = base64.b64encode(buffer).decode('utf-8')
+            socketio.emit('video_frame', {'image': frame_b64})
 
-        socketio.emit('video_frame', {'image': frame_b64})
+            # 同時也發送 PIP 畫面 (為了讓前端 PIP 視窗也有畫面)
+            # 如果覺得 PIP 視窗沒必要跟主畫面一樣，可以省略這行
+            # 但為了統一體驗，建議加上
+            pip_frame = cv2.resize(frame, (320, 240))
+            _, pip_buffer = cv2.imencode('.jpg', pip_frame)
+            pip_b64 = base64.b64encode(pip_buffer).decode('utf-8')
+            socketio.emit('camera_frame', {'image': pip_b64})
 
-        emotion_dict = {
-            label: float(p)*100 for label, p in zip(emotion_labels, probs_now)
-        }
-        socketio.emit('emotion_update', emotion_dict)
+            emotion_dict = {
+                label: float(p)*100 for label, p in zip(emotion_labels, probs_now)
+            }
+            socketio.emit('emotion_update', emotion_dict)
 
-        socketio.sleep(1.0 / fps)
+            socketio.sleep(1.0 / fps)
 
     cap.release()
     print("[PY] Camera mode stopped.")
     socketio.emit('processing_complete', {'msg': 'Camera 模式停止', 'mode': 'camera'})
-
+    
 def hand_tracking_loop():
     global hand_tracking_active, hand_control_enabled, osc_client
 

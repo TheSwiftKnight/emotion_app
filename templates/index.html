@@ -144,34 +144,58 @@
         }
         
         .pip-window {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        width: 240px;
-        height: 180px;
-        background-color: #000;
-        border: 2px solid rgba(255, 255, 255, 0.5);
-        border-radius: 8px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        z-index: 50; /* 確保在最上層 */
-        overflow: hidden;
-        transition: opacity 0.3s;
-    }
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 240px;
+            height: 180px;
+            background-color: #000;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            z-index: 50;
+            overflow: hidden;
+            transition: opacity 0.3s;
+        }
 
-    .pip-window img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        transform: scaleX(-1); /* 鏡像翻轉，讓操作比較直覺 */
-    }
+        .pip-window img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
 
-    .hand-toggle-btn {
-        background-color: #f59e0b; /* 橘色 */
-        color: white;
-    }
-    .hand-toggle-btn.off {
-        background-color: #4b5563; /* 灰色 */
-    }
+        /* 手勢控制按鈕樣式 */
+        .hand-toggle-btn {
+            background-color: #f59e0b; /* 橘色 (Active) */
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .hand-toggle-btn:hover {
+            background-color: #d97706;
+        }
+        .hand-toggle-btn.off {
+            background-color: #4b5563; /* 灰色 (Inactive) */
+            color: #d1d5db;
+        }
+        .hand-toggle-btn.off:hover {
+            background-color: #374151;
+        }
+        
+        /* 模式切換按鈕的樣式 class (由 JS 動態添加) */
+        .mode-btn-active {
+            background-color: #2563eb !important; /* bg-blue-600 */
+            color: white !important;
+            box-shadow: 0 0 10px rgba(37, 99, 235, 0.5);
+        }
+        .mode-btn-inactive {
+            background-color: #374151 !important; /* bg-gray-700 */
+            color: #9ca3af !important; /* text-gray-400 */
+        }
+        .mode-btn-inactive:hover {
+            background-color: #4b5563 !important; /* hover:bg-gray-600 */
+            color: white !important;
+        }
     </style>
 </head>
 <body class="dynamic-bg text-white min-h-screen overflow-hidden relative" id="dynamicBody" style="background: rgb(17, 24, 39);">
@@ -184,17 +208,16 @@
                         <h1 class="text-xl font-bold text-white text-center mb-6">AI 情緒分析系統</h1>
                     </div>
 
-                    <!-- 控制部分 -->
                     <div class="mb-6 flex-shrink-0 input-controls-section" id="inputControlsSection">
                         <h2 class="text-lg font-semibold mb-3 text-white">輸入來源與控制</h2>
 
                         <div class="mb-4">
                             <p class="text-xs text-gray-300 mb-2">選擇輸入來源</p>
                             <div class="flex flex-wrap gap-2">
-                                <button type="button" id="mode-upload" onclick="setInputMode('upload')" class="mode-btn bg-blue-600 text-white font-semibold px-3 py-1 text-xs rounded-full transition focus:outline-none">
+                                <button type="button" id="mode-upload" onclick="setInputMode('upload')" class="mode-btn font-semibold px-3 py-1 text-xs rounded-full transition focus:outline-none">
                                     上傳影片
                                 </button>
-                                <button type="button" id="mode-camera" onclick="setInputMode('camera')" class="mode-btn bg-gray-700 hover:bg-gray-600 text-white font-semibold px-3 py-1 text-xs rounded-full transition focus:outline-none">
+                                <button type="button" id="mode-camera" onclick="setInputMode('camera')" class="mode-btn font-semibold px-3 py-1 text-xs rounded-full transition focus:outline-none">
                                     即時攝影機
                                 </button>
                             </div>
@@ -218,23 +241,22 @@
                         </div>
 
                         <div id="cameraHint" class="hidden text-xs text-gray-400 mb-4">
-                            將使用此伺服器連線的攝影機。未來會支援即時模式。
+                            將使用此伺服器連線的攝影機進行即時分析。
                         </div>
 
                         <div class="flex flex-col gap-2 mb-4">
-                            <!-- PHASE1 按鈕：只有分析 + 快取 -->
                             <button onclick="startPhase1()" id="phase1Btn"
                                 class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 text-sm rounded transition disabled:opacity-50"
                                 disabled>
                                 PHASE 1：分析（預先運算）
                             </button>
 
-                            <!-- PHASE2 按鈕：只播放（用快取結果） -->
                             <button onclick="startPhase2()" id="phase2Btn"
                                 class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 text-sm rounded transition disabled:opacity-50"
                                 disabled>
                                 PLAY（PHASE 2 播放）
                             </button>
+
                             <button onclick="startCamera()" id="cameraStartBtn"
                                 class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 text-sm rounded transition hidden">
                                 開始即時偵測
@@ -245,7 +267,7 @@
                             </button>
                         </div>
                     </div>
-                    <!-- Phase1 進度條 -->
+
                     <div id="phase1ProgressContainer" class="mb-4 hidden">
                         <div class="flex justify-between mb-1">
                             <span class="text-xs text-gray-200">Phase 1 進度</span>
@@ -258,7 +280,6 @@
                         </div>
                     </div>
 
-                    <!-- 停止按鈕 -->
                     <div class="mb-6 flex-shrink-0" id="stopBtnContainer" style="display: none;">
                         <button onclick="stopProcessing()" id="stopBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 text-sm rounded transition w-full">
                             停止
@@ -275,7 +296,6 @@
 
                     <div class="border-t border-gray-600 my-4 flex-shrink-0"></div>
 
-                    <!-- 情緒比例 -->
                     <div class="flex-1 flex flex-col min-h-0">
                         <h2 class="text-base font-semibold mb-3 text-white flex-shrink-0">即時情緒比例</h2>
                         <div id="stats-container" class="space-y-2 overflow-y-auto flex-1">
@@ -291,7 +311,6 @@
         </div>
     </div>
 
-    <!-- 主影片區 -->
     <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-5 video-container panel-open" id="videoArea">
         <div id="videoContainer" class="main-video bg-black rounded-xl overflow-hidden shadow-2xl relative" style="width: 60vw; aspect-ratio: 16/9; max-width: 800px; border: 8px solid rgba(128, 128, 128, 0.3); transition: all 0.3s ease, border-color 0.5s ease, box-shadow 0.5s ease;">
             <p id="placeholderText" class="absolute inset-0 flex items-center justify-center text-gray-500 text-xl">
@@ -300,7 +319,6 @@
             <img id="processedFrame" class="w-full h-full object-contain hidden" />
         </div>
     </div>
-
 
     <div id="pipContainer" class="pip-window hidden">
         <img id="pipImage" />
@@ -332,9 +350,18 @@
         let isProcessing = false;
         let inputMode = 'upload';
         let hasUploadedVideo = false;
-        let isHandControlOn = true; // track hand control toggle state
+        let isHandControlOn = true; 
+        let isPhase1Completed = false;
+        
+        // 初始化
+        window.addEventListener('load', () => {
+            setInputMode('upload');
+            initStats();
+            updateHandControlButtonUI(); // 確保初始 UI 狀態正確
+        });
 
         function togglePanel() {
+            // ... (同原程式碼，略) ...
             const container = document.getElementById('sidebarContainer');
             const panel = document.getElementById('controlPanel');
             const toggleBtn = document.getElementById('toggleBtn');
@@ -368,6 +395,7 @@
             }
         }
 
+        // ... (updateToggleButtonBg, updateDynamicBackground, updateVideoBorder, initStats, resetPhase1Progress, showPhase1Progress 保持不變) ...
         function updateToggleButtonBg(emotionData) {
             const toggleBtn = document.getElementById('toggleBtn');
             if (!toggleBtn || !emotionData) return;
@@ -463,7 +491,6 @@
             const videoContainer = document.getElementById('videoContainer');
             if (!videoContainer) return;
 
-            // 1. 找最大情緒
             let topEmotion = null;
             let topValue = 0;
             for (const [emo, val] of Object.entries(emotionData)) {
@@ -473,29 +500,22 @@
                 }
             }
 
-            // 2. 如果沒有偵測到情緒 → 回復預設
             if (!topEmotion || topValue < 1) {
                 videoContainer.style.borderColor = 'rgba(128,128,128,0.3)';
                 videoContainer.style.boxShadow = 'none';
                 return;
             }
 
-            // 3. 抓顏色
             const [r, g, b] = emotionBgColors[topEmotion];
-
-            // 透明度依照情緒強度（最大 0.9）
             const opacity = Math.min(topValue / 100 * 0.9, 0.9);
-
             const borderColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
             const glowColor = `rgba(${r}, ${g}, ${b}, ${opacity * 0.6})`;
 
-            // 4. 修改外框與光暈
             videoContainer.style.borderColor = borderColor;
             videoContainer.style.boxShadow =
                 `0 0 ${10 + topValue / 10}px ${glowColor}, 
                 0 25px 50px -12px rgba(0,0,0,0.25)`;
         }
-
 
         function initStats() {
             const container = document.getElementById('stats-container');
@@ -523,7 +543,6 @@
 
             bar.style.width = '0%';
             label.textContent = '0%';
-            // 預設還是顯示，或想隱藏可以 container.classList.add('hidden');
         }
 
         function showPhase1Progress() {
@@ -531,6 +550,9 @@
             if (container) container.classList.remove('hidden');
         }
 
+        // ==========================================
+        //  修改過的 setInputMode
+        // ==========================================
         function setInputMode(mode) {
             if (isProcessing) {
                 alert('分析進行中，請先停止再切換來源。');
@@ -539,46 +561,102 @@
 
             inputMode = mode;
 
+            // 1. 更新 Mode Button 樣式 (藍色/灰色)
+            const btnUpload = document.getElementById('mode-upload');
+            const btnCamera = document.getElementById('mode-camera');
+            
+            if (mode === 'upload') {
+                btnUpload.classList.add('mode-btn-active');
+                btnUpload.classList.remove('mode-btn-inactive');
+                
+                btnCamera.classList.add('mode-btn-inactive');
+                btnCamera.classList.remove('mode-btn-active');
+            } else {
+                btnCamera.classList.add('mode-btn-active');
+                btnCamera.classList.remove('mode-btn-inactive');
+                
+                btnUpload.classList.add('mode-btn-inactive');
+                btnUpload.classList.remove('mode-btn-active');
+            }
+
+            // 2. 切換控制項顯示
             const uploadControls = document.getElementById('uploadControls');
             const cameraHint = document.getElementById('cameraHint');
             const phase1Btn = document.getElementById('phase1Btn');
             const phase2Btn = document.getElementById('phase2Btn');
             const cameraStartBtn = document.getElementById('cameraStartBtn');
             const cameraStopBtn = document.getElementById('cameraStopBtn');
+
             if (mode === 'upload') {
                 uploadControls.classList.remove('hidden');
                 cameraHint.classList.add('hidden');
 
+                // 顯示 Phase1/2 按鈕
+                phase1Btn.classList.remove('hidden');
+                phase2Btn.classList.remove('hidden');
                 phase1Btn.disabled = !hasUploadedVideo;
-                phase2Btn.disabled = true;
+                phase2Btn.disabled = !isPhase1Completed;
 
+                // 隱藏 Camera 按鈕
                 cameraStartBtn.classList.add('hidden');
-            }
+                cameraStopBtn.classList.add('hidden');
+                
+                // 還原畫面
+                document.getElementById('processedFrame').classList.add('hidden');
+                document.getElementById('placeholderText').style.display = 'flex';
 
-            if (mode === "camera") {
+            } else if (mode === "camera") {
                 uploadControls.classList.add("hidden");
                 cameraHint.classList.remove("hidden");
 
-                phase1Btn.disabled = true;
-                phase2Btn.disabled = true;
+                // 隱藏 Phase1/2 按鈕 (你的要求 2)
+                phase1Btn.classList.add('hidden');
+                phase2Btn.classList.add('hidden');
 
-                const cameraStartBtn = document.getElementById("cameraStartBtn");
-                const cameraStopBtn = document.getElementById("cameraStopBtn");
-
+                // 顯示 Camera 按鈕
                 cameraStartBtn.classList.remove("hidden");
                 cameraStopBtn.classList.remove("hidden");
 
-                // ⭐ 中央畫面切到 camera 模式
+                // 顯示畫面容器
                 const img = document.getElementById("processedFrame");
                 const placeholder = document.getElementById("placeholderText");
-
                 placeholder.style.display = "none";
                 img.classList.remove("hidden");
                 img.style.display = "block";
+                document.getElementById('pipContainer').classList.add('hidden');
             }
-
         }
 
+        // ==========================================
+        //  修改過的 toggleHandControl
+        // ==========================================
+        function toggleHandControl() {
+            isHandControlOn = !isHandControlOn;
+            updateHandControlButtonUI();
+            
+            // 確保 Socket 訊號發送
+            socket.emit('toggle_hand_control', { enabled: isHandControlOn });
+
+            // 如果是關閉狀態，強制重置畫面 CSS (避免卡在歪斜狀態)
+            if (!isHandControlOn) {
+                const videoContainer = document.getElementById('videoContainer');
+                if(videoContainer) {
+                    videoContainer.style.transform = "perspective(1000px) scale(1) rotateY(0deg)";
+                }
+            }
+        }
+
+        // 獨立出 UI 更新邏輯，確保狀態一致
+        function updateHandControlButtonUI() {
+            const btn = document.getElementById('btnHandToggle');
+            if (isHandControlOn) {
+                btn.textContent = "手勢控制：開啟";
+                btn.classList.remove('off');
+            } else {
+                btn.textContent = "手勢控制：關閉";
+                btn.classList.add('off');
+            }
+        }
 
         async function uploadVideo() {
             const fileInput = document.getElementById('videoInput');
@@ -597,14 +675,9 @@
                 if (res.ok) {
                     alert("上傳成功！請先按 PHASE1 做分析");
                     hasUploadedVideo = true;
-                    const phase1Btn = document.getElementById('phase1Btn');
-                    const phase2Btn = document.getElementById('phase2Btn');
-                    phase1Btn.disabled = false;
-                    phase2Btn.disabled = true;
-
-                    initStats();
-                    document.getElementById('placeholderText').style.display = 'flex';
-                    document.getElementById('processedFrame').style.display = 'none';
+                    isPhase1Completed = false;
+                    // 更新按鈕狀態
+                    setInputMode('upload'); 
                 } else {
                     alert("上傳失敗");
                 }
@@ -615,11 +688,11 @@
                 btn.textContent = "上傳影片";
             }
         }
+
         function startCamera(){
             if(isProcessing) return;
             isProcessing = true;
 
-            // ⭐ 立即顯示攝影機畫面
             document.getElementById("placeholderText").style.display="none";
             const img=document.getElementById("processedFrame");
             img.classList.remove("hidden");
@@ -633,125 +706,59 @@
             socket.emit('stop_camera');
         }
 
-        // PHASE1：只分析，不播放
         function startPhase1() {
-            if (isProcessing) {
-                alert("目前正在處理中，請先停止或等完成。");
-                return;
-            }
-            if (inputMode !== 'upload') {
-                alert("目前 PHASE1 僅支援上傳影片模式。");
-                return;
-            }
-            if (!hasUploadedVideo) {
-                alert("請先上傳影片檔案。");
-                return;
-            }
+            if (isProcessing) return alert("處理中...");
+            if (!hasUploadedVideo) return alert("請先上傳影片");
 
             isProcessing = true;
             initStats();
-
-        // 🆕 顯示進度條＆歸零
             showPhase1Progress();
             resetPhase1Progress();
 
-            const inputControlsSection = document.getElementById('inputControlsSection');
-            if (inputControlsSection) inputControlsSection.classList.add('hidden');
+            document.getElementById('inputControlsSection').classList.add('hidden');
+            document.getElementById('stopBtnContainer').style.display = 'block';
 
-            const stopBtnContainer = document.getElementById('stopBtnContainer');
-            if (stopBtnContainer) stopBtnContainer.style.display = 'block';
-
-            const phase1Btn = document.getElementById('phase1Btn');
-            const phase2Btn = document.getElementById('phase2Btn');
-            phase1Btn.disabled = true;
-            phase2Btn.disabled = true;
-
-            // PHASE1 不一定要畫畫面，但先把 placeholder 留著
-            document.getElementById('placeholderText').style.display = 'flex';
-            document.getElementById('processedFrame').classList.add('hidden');
+            document.getElementById('phase1Btn').disabled = true;
+            document.getElementById('phase2Btn').disabled = true;
 
             socket.emit('start_phase1', { mode: inputMode });
         }
 
-        // PHASE2：只播放（用快取結果）
         function startPhase2() {
-            if (isProcessing) {
-                alert("目前正在處理中，請先停止或等完成。");
-                return;
-            }
-            if (!hasUploadedVideo) {
-                alert("請先上傳影片並完成 PHASE1 分析。");
-                return;
-            }
+            if (isProcessing) return alert("處理中...");
+            if (!hasUploadedVideo) return alert("請先完成 Phase 1");
 
             isProcessing = true;
             initStats();
 
-            const inputControlsSection = document.getElementById('inputControlsSection');
-            if (inputControlsSection) inputControlsSection.classList.add('hidden');
-
-            const stopBtnContainer = document.getElementById('stopBtnContainer');
-            if (stopBtnContainer) stopBtnContainer.style.display = 'block';
-
+            document.getElementById('inputControlsSection').classList.add('hidden');
+            document.getElementById('stopBtnContainer').style.display = 'block';
+            document.getElementById('processedFrame').classList.remove('hidden');
             document.getElementById('placeholderText').style.display = 'none';
-            const img = document.getElementById('processedFrame');
-            img.classList.remove('hidden');
-            img.style.display = 'block';
-
-            const phase1Btn = document.getElementById('phase1Btn');
-            const phase2Btn = document.getElementById('phase2Btn');
-            phase1Btn.disabled = true;
-            phase2Btn.disabled = true;
 
             socket.emit('start_phase2', { mode: inputMode });
         }
 
         function stopProcessing() {
             if (!isProcessing) return;
-
             socket.emit('stop_processing');
-
             const stopBtn = document.getElementById('stopBtn');
             stopBtn.disabled = true;
             stopBtn.textContent = '停止中...';
-
             setTimeout(() => {
                 stopBtn.disabled = false;
                 stopBtn.textContent = '停止';
             }, 800);
         }
 
-        function toggleHandControl() {
-            isHandControlOn = !isHandControlOn;
-            
-            const btn = document.getElementById('btnHandToggle');
-            if (isHandControlOn) {
-                btn.textContent = "手勢控制：開啟";
-                btn.classList.remove('off');
-            } else {
-                btn.textContent = "手勢控制：關閉";
-                btn.classList.add('off');
-                
-                // 關閉時，把主畫面復原回正中央
-                const videoContainer = document.getElementById('videoContainer');
-                if(videoContainer) {
-                    videoContainer.style.transform = "perspective(1000px) scale(1) rotateY(0deg)";
-                }
-            }
-            
-            // 通知 Server
-            socket.emit('toggle_hand_control', { enabled: isHandControlOn });
-        }
-
+        // Socket 事件監聽 (Video Frame)
         socket.on("video_frame", (data) => {
-            if (inputMode !== "camera" && inputMode !== "upload") return;
             if (!isProcessing) return;
-
             const img = document.getElementById("processedFrame");
             img.src = "data:image/jpeg;base64," + data.image;
         });
 
-
+        // Socket 事件監聽 (Emotion Update)
         socket.on('emotion_update', (data) => {
             for (const [key, value] of Object.entries(data)) {
                 const bar = document.getElementById(`bar-${key}`);
@@ -767,96 +774,73 @@
         });
 
         socket.on('phase1_progress', (data) => {
-            const container = document.getElementById('phase1ProgressContainer');
             const bar = document.getElementById('phase1ProgressBar');
             const label = document.getElementById('phase1ProgressLabel');
             if (!bar || !label) return;
-
-            if (container && container.classList.contains('hidden')) {
-                container.classList.remove('hidden');
-            }
-
             const p = Math.max(0, Math.min(100, data.progress || 0));
             bar.style.width = p + '%';
             label.textContent = p.toFixed(1) + '%';
         });
 
         socket.on('processing_complete', (data) => {
-            
             isProcessing = false;
-            const phase1Btn = document.getElementById('phase1Btn');
-            const phase2Btn = document.getElementById('phase2Btn');
-            const stopBtnContainer = document.getElementById('stopBtnContainer');
-            const inputControlsSection = document.getElementById('inputControlsSection');
-
-            if (stopBtnContainer) stopBtnContainer.style.display = 'none';
-            if (inputControlsSection) inputControlsSection.classList.remove('hidden');
+            
+            document.getElementById('stopBtnContainer').style.display = 'none';
+            document.getElementById('inputControlsSection').classList.remove('hidden');
 
             const modeFromServer = data?.mode || 'unknown';
-
             if (modeFromServer === 'phase1') {
-                // Phase1 做完 => 可以重跑 Phase1 / 也可以 PLAY Phase2
-                phase1Btn.disabled = !hasUploadedVideo;
-                phase2Btn.disabled = !hasUploadedVideo;
-                // 🆕 Phase1 結束，維持 100% 然後 1 秒後隱藏
-                setTimeout(() => {
+                isPhase1Completed = true;
+            }
+
+            // 確保回到當前模式的正確按鈕狀態
+            setInputMode(inputMode);
+
+            // 隱藏進度條 (若是 Phase1 完成)
+            if (data?.mode === 'phase1') {
+                 setTimeout(() => {
                     const container = document.getElementById('phase1ProgressContainer');
                     if (container) container.classList.add('hidden');
                 }, 1000);
-            } else if (modeFromServer === 'phase2') {
-                // Phase2 播放結束 => 可再播 / 也可重新跑 Phase1
-                phase1Btn.disabled = !hasUploadedVideo;
-                phase2Btn.disabled = !hasUploadedVideo;
-                document.getElementById('placeholderText').style.display = 'flex';
             }
 
-            // 隱藏 PIP（當 Phase 2 結束時）
-            const pipContainer = document.getElementById('pipContainer');
-            if (pipContainer) {
-                pipContainer.classList.add('hidden');
-            }
-
+            // 隱藏 PIP
+            document.getElementById('pipContainer').classList.add('hidden');
             alert(data?.msg || "處理完成！");
         });
 
         socket.on('error', (data) => {
             alert("錯誤: " + data.msg);
             isProcessing = false;
-
-            const phase1Btn = document.getElementById('phase1Btn');
-            const phase2Btn = document.getElementById('phase2Btn');
-            const stopBtnContainer = document.getElementById('stopBtnContainer');
-            const inputControlsSection = document.getElementById('inputControlsSection');
-
-            phase1Btn.disabled = (inputMode === 'upload' && !hasUploadedVideo);
-            phase2Btn.disabled = true;
-
-            if (stopBtnContainer) stopBtnContainer.style.display = 'none';
-            if (inputControlsSection) inputControlsSection.classList.remove('hidden');
+            document.getElementById('stopBtnContainer').style.display = 'none';
+            document.getElementById('inputControlsSection').classList.remove('hidden');
+            setInputMode(inputMode);
         });
 
-        setInputMode('upload');
-        initStats();
-
-        // 接收手勢互動數據
+        // 接收手勢互動數據 (更新畫面 Transform)
         socket.on('interaction_update', (data) => {
             const videoContainer = document.getElementById('videoContainer');
             if (videoContainer) {
-                // 使用 CSS Transform 來做 放大(Zoom) 和 旋轉(Angle)
-                // scale: 控制遠近
-                // rotateY: 控制左右偏斜 (3D效果)
                 videoContainer.style.transform = 
                     `perspective(1000px) scale(${data.scale}) rotateY(${data.rotate}deg)`;
             }
         });
 
+        // PIP 畫面接收
         socket.on('camera_frame', (data) => {
             const pipContainer = document.getElementById('pipContainer');
             const pipImage = document.getElementById('pipImage');
             
-            // 如果收到畫面，就顯示 PIP 視窗
-            if(pipContainer.classList.contains('hidden')) {
-                pipContainer.classList.remove('hidden');
+            // 只有在 "非 Camera" 模式 (也就是 Upload 模式) 下，才顯示 PIP
+            if (inputMode !== 'camera') {
+                if(pipContainer.classList.contains('hidden')) {
+                    pipContainer.classList.remove('hidden');
+                }
+            } else {
+                // 如果是 Camera 模式，確保 PIP 是隱藏的
+                if(!pipContainer.classList.contains('hidden')) {
+                    pipContainer.classList.add('hidden');
+                }
             }
             
             pipImage.src = "data:image/jpeg;base64," + data.image;
