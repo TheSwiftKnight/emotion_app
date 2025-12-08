@@ -208,7 +208,7 @@
                         <h1 class="text-xl font-bold text-white text-center mb-6">AI 情緒分析系統</h1>
                     </div>
 
-                    <div class="mb-6 flex-shrink-0 input-controls-section" id="inputControlsSection">
+                    <div class="mb-4 flex-shrink-0 input-controls-section" id="inputControlsSection">
                         <h2 class="text-lg font-semibold mb-3 text-white">輸入來源與控制</h2>
 
                         <div class="mb-4">
@@ -244,19 +244,17 @@
                             將使用此伺服器連線的攝影機進行即時分析。
                         </div>
 
-                        <div class="flex flex-col gap-2 mb-4">
+                        <div class="flex flex-col gap-2 mb-2">
                             <button onclick="startPhase1()" id="phase1Btn"
                                 class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 text-sm rounded transition disabled:opacity-50"
                                 disabled>
                                 PHASE 1：分析（預先運算）
                             </button>
-
                             <button onclick="startPhase2()" id="phase2Btn"
                                 class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 text-sm rounded transition disabled:opacity-50"
                                 disabled>
-                                PLAY（PHASE 2 播放）
+                                PHASE 2： 播放
                             </button>
-
                             <button onclick="startCamera()" id="cameraStartBtn"
                                 class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 text-sm rounded transition hidden">
                                 開始即時偵測
@@ -268,7 +266,7 @@
                         </div>
                     </div>
 
-                    <div id="phase1ProgressContainer" class="mb-4 hidden">
+                    <div id="phase1ProgressContainer" class="mb-4 hidden flex-shrink-0">
                         <div class="flex justify-between mb-1">
                             <span class="text-xs text-gray-200">Phase 1 進度</span>
                             <span id="phase1ProgressLabel" class="text-xs text-gray-200">0%</span>
@@ -280,25 +278,24 @@
                         </div>
                     </div>
 
-                    <div class="mb-6 flex-shrink-0" id="stopBtnContainer" style="display: none;">
+                    <div class="mb-4 flex-shrink-0" id="stopBtnContainer" style="display: none;">
                         <button onclick="stopProcessing()" id="stopBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 text-sm rounded transition w-full">
                             停止
                         </button>
                     </div>
 
-                    <div class="mt-2 mb-6 flex-shrink-0">
-                        <h3 class="text-xs text-gray-300 mb-2">互動控制</h3>
+                    <div class="mb-6 flex-shrink-0 hidden" id="handControlContainer">
                         <button id="btnHandToggle" onclick="toggleHandControl()" 
                                 class="hand-toggle-btn font-bold py-2 px-4 text-sm rounded transition w-full">
                             手勢控制：開啟
                         </button>
                     </div>
 
-                    <div class="border-t border-gray-600 my-4 flex-shrink-0"></div>
+                    <div class="border-t border-gray-600 mb-4 flex-shrink-0"></div>
 
-                    <div class="flex-1 flex flex-col min-h-0">
+                    <div class="flex-1 flex flex-col min-h-0 hidden" id="statsSection">
                         <h2 class="text-base font-semibold mb-3 text-white flex-shrink-0">即時情緒比例</h2>
-                        <div id="stats-container" class="space-y-2 overflow-y-auto flex-1">
+                        <div id="stats-container" class="space-y-2 overflow-y-auto flex-1 pr-1">
                             <div class="text-gray-500 text-center py-6 text-sm">等待數據中...</div>
                         </div>
                     </div>
@@ -395,7 +392,6 @@
             }
         }
 
-        // ... (updateToggleButtonBg, updateDynamicBackground, updateVideoBorder, initStats, resetPhase1Progress, showPhase1Progress 保持不變) ...
         function updateToggleButtonBg(emotionData) {
             const toggleBtn = document.getElementById('toggleBtn');
             if (!toggleBtn || !emotionData) return;
@@ -550,9 +546,6 @@
             if (container) container.classList.remove('hidden');
         }
 
-        // ==========================================
-        //  修改過的 setInputMode
-        // ==========================================
         function setInputMode(mode) {
             if (isProcessing) {
                 alert('分析進行中，請先停止再切換來源。');
@@ -560,7 +553,8 @@
             }
 
             inputMode = mode;
-
+            document.getElementById('handControlContainer').classList.add('hidden');
+            document.getElementById('statsSection').classList.add('hidden');
             // 1. 更新 Mode Button 樣式 (藍色/灰色)
             const btnUpload = document.getElementById('mode-upload');
             const btnCamera = document.getElementById('mode-camera');
@@ -699,6 +693,8 @@
             img.style.display="block";
 
             initStats();
+            document.getElementById('handControlContainer').classList.remove('hidden');
+            document.getElementById('statsSection').classList.remove('hidden');
             socket.emit("start_camera");
         }
 
@@ -735,7 +731,8 @@
             document.getElementById('stopBtnContainer').style.display = 'block';
             document.getElementById('processedFrame').classList.remove('hidden');
             document.getElementById('placeholderText').style.display = 'none';
-
+            document.getElementById('handControlContainer').classList.remove('hidden');
+            document.getElementById('statsSection').classList.remove('hidden');
             socket.emit('start_phase2', { mode: inputMode });
         }
 
