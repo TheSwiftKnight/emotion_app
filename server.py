@@ -619,7 +619,7 @@ def camera_loop():
                                 dist = math.sqrt((thumb_tip.x - index_tip.x)**2 + (thumb_tip.y - index_tip.y)**2)
                                 
                                 # 映射距離到 Zoom 係數
-                                zoom_factor = 1.0 + (dist * 5.0)
+                                zoom_factor = 0.7 + (dist * 2.0)
 
                                 # 發送控制訊號
                                 if osc_client:
@@ -764,7 +764,7 @@ def hand_tracking_loop():
                         thumb_tip = hand_landmarks.landmark[4]
                         index_tip = hand_landmarks.landmark[8]
                         dist = math.sqrt((thumb_tip.x - index_tip.x)**2 + (thumb_tip.y - index_tip.y)**2)
-                        zoom_factor = 1.0 + (dist * 4.0)
+                        zoom_factor = 0.7 + (dist * 2.0)
                         break 
 
                     # 發送 OSC 給 Max
