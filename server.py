@@ -737,34 +737,37 @@ def hand_tracking_loop():
                 time.sleep(0.1)
                 continue
 
-            # --- A. 處理 PIP 畫面回傳 (不管有沒有開控制，都要看畫面) ---
-            # 為了效能，PIP 畫面可以縮小一點
+            # [新增] 1. 水平翻轉畫面 (鏡像效果)
+            frame = cv2.flip(frame, 1)
+
+            # --- A. 處理 PIP 畫面回傳 ---
             pip_frame = cv2.resize(frame, (320, 240)) 
             _, buffer = cv2.imencode('.jpg', pip_frame)
             pip_base64 = base64.b64encode(buffer).decode('utf-8')
-            # 發送給前端的 'camera_frame' 事件
             socketio.emit('camera_frame', {'image': pip_base64})
 
-            # --- B. 手勢辨識與控制 (只有 enabled 時才做) ---
+            # --- B. 手勢辨識與控制 ---
             if hand_control_enabled:
                 image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 results = hands.process(image_rgb)
 
-                zoom_factor = 1.0
-                pan_val = 0.5
+                zoom_factor = 1.0 
+                pan_val = 0.5     
 
                 if results.multi_hand_landmarks:
                     for hand_landmarks in results.multi_hand_landmarks:
-                        # 邏輯與之前相同：計算 Pan
+                        # [修改] 2. 計算 Pan (左右位置)
+                        # 因為畫面已經翻轉 (鏡像)，手在畫面右邊 x 就是 1，聲音也要往右，所以直接用 x
                         wrist_x = hand_landmarks.landmark[0].x 
-                        pan_val = 1.0 - wrist_x
-                        pan_val = max(0.0, min(1.0, pan_val))
+                        pan_val = max(0.0, min(1.0, wrist_x))
 
-                        # 計算 Zoom
+                        # [保留] 3. 計算 Zoom (使用優化過的距離公式)
                         thumb_tip = hand_landmarks.landmark[4]
                         index_tip = hand_landmarks.landmark[8]
                         dist = math.sqrt((thumb_tip.x - index_tip.x)**2 + (thumb_tip.y - index_tip.y)**2)
-                        zoom_factor = 0.7 + (dist * 2.0)
+                        
+                        # 0.7(基礎遠距) + 2.5(倍率)
+                        zoom_factor = 0.7 + (dist * 2.5)
                         break 
 
                     # 發送 OSC 給 Max
@@ -779,12 +782,11 @@ def hand_tracking_loop():
                         'rotate': float(rotation_y)
                     })
             
-            # 控制 FPS (約 30fps)
             time.sleep(0.033)
 
         cap.release()
         print("[PY] Hand Tracking Stopped")
-
+        
 if __name__ == '__main__':
     load_emotion_model()
     start_bpm_listener_once()
